@@ -1,0 +1,33 @@
+plugins {
+  id 'java'
+  id 'ru.shadam.publish-plugin' version '0.3.0' apply false
+}
+
+apply plugin: 'ru.shadam.publish-plugin'
+
+repositories {
+  jcenter()
+}
+
+publish {
+  description = 'spring-data for tarantool'
+  github 'saladinkzn', 'spring-data-tarantool'
+  developerName = 'Timur Shakurov'
+  license = 'MIT'
+  licenseUrl = 'https://raw.githubusercontent.com/saladinkzn/spring-data-tarantool/master/LICENSE'
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+dependencies {
+  compile 'org.springframework.data:spring-data-keyvalue:1.1.6.RELEASE'
+  compile 'org.tarantool:connector:1.7.0'
+
+  testCompile 'junit:junit:4.12'
+  testCompile 'org.slf4j:slf4j-simple:1.7.22'
+}
+
+task wrapper(type: Wrapper) {
+  gradleVersion = '3.3'
+}
