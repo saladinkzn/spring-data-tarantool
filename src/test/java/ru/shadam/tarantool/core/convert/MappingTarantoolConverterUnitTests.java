@@ -313,7 +313,7 @@ public class MappingTarantoolConverterUnitTests {
         Date date = cal.getTime();
 
         Person target = converter.read(Person.class, new TarantoolData(
-                Tuples.of(Path.of(BIRTHDAY), Long.valueOf(date.getTime()).toString())));
+                Tuples.of(Path.of(BIRTHDAY), date.getTime())));
 
         assertThat(target.birthday, is(date));
     }

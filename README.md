@@ -1,4 +1,5 @@
 # spring-data-tarantool
+[![Build Status](https://travis-ci.org/saladinkzn/spring-data-tarantool.svg?branch=master)](https://travis-ci.org/saladinkzn/spring-data-tarantool)
 ![Maintenance Status](http://img.shields.io/maintenance/yes/2017.svg)
 [![License](http://img.shields.io/badge/license-MIT-47b31f.svg)](#copyright-and-license)
 
