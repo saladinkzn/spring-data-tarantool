@@ -1,9 +1,11 @@
 plugins {
   id 'java'
   id 'ru.shadam.publish-plugin' version '0.3.0' apply false
+  id "com.jfrog.bintray" version "1.7.3" apply false
 }
 
 apply plugin: 'ru.shadam.publish-plugin'
+apply plugin: (String)'com.jfrog.bintray'
 
 repositories {
   jcenter()
@@ -11,10 +13,22 @@ repositories {
 
 publish {
   description = 'spring-data for tarantool'
-  github 'saladinkzn', 'spring-data-tarantool'
+  github project.github_username, project.name
   developerName = 'Timur Shakurov'
-  license = 'MIT'
+  license = project.license
   licenseUrl = 'https://raw.githubusercontent.com/saladinkzn/spring-data-tarantool/master/LICENSE'
+}
+
+bintray {
+  user = System.getenv('BINTRAY_USER')
+  key = System.getenv('BINTRAY_KEY')
+  pkg {
+    repo = 'maven'
+    name = project.name
+    licenses = [project.license]
+    vcsUrl = "https://github.com/${project.github_username}/${project.name}.git"
+    publications = ['mavenJava']
+  }
 }
 
 sourceCompatibility = JavaVersion.VERSION_1_8
