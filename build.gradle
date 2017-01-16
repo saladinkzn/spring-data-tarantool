@@ -2,10 +2,12 @@ plugins {
   id 'java'
   id 'ru.shadam.publish-plugin' version '0.3.0' apply false
   id "com.jfrog.bintray" version "1.7.3" apply false
+  id "com.jfrog.artifactory" version "4.4.12" apply(false)
 }
 
 apply plugin: 'ru.shadam.publish-plugin'
 apply plugin: (String)'com.jfrog.bintray'
+apply plugin: 'com.jfrog.artifactory'
 
 repositories {
   jcenter()
@@ -28,6 +30,22 @@ bintray {
     licenses = [project.license]
     vcsUrl = "https://github.com/${project.github_username}/${project.name}.git"
     publications = ['mavenJava']
+  }
+}
+
+artifactory {
+  contextUrl = 'https://oss.jfrog.org/artifactory'
+  publish {
+    repository {
+      repoKey = 'oss-snapshot-local'
+      username = System.getenv('BINTRAY_USER')
+      password = System.getenv('BINTRAY_KEY')
+    }
+    defaults {
+      publications ('mavenJava')
+      publishArtifacts = true
+      publishPom = true
+    }
   }
 }
 
