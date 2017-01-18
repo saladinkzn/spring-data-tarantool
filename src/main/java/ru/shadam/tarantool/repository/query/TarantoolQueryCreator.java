@@ -12,29 +12,36 @@ import java.util.Iterator;
 /**
  * @author sala
  */
-public class TarantoolQueryCreator extends AbstractQueryCreator<KeyValueQuery<TarantoolQueryChain>, TarantoolQueryChain> {
+public class TarantoolQueryCreator extends AbstractQueryCreator<KeyValueQuery<TarantoolQuery>, TarantoolQuery> {
 
     public TarantoolQueryCreator(PartTree tree, ParameterAccessor parameters) {
         super(tree, parameters);
     }
 
     @Override
-    protected TarantoolQueryChain create(Part part, Iterator<Object> iterator) {
-        return null;
+    protected TarantoolQuery create(Part part, Iterator<Object> iterator) {
+        switch (part.getType()) {
+            case SIMPLE_PROPERTY:
+                return new TarantoolQuery(part.getProperty().toDotPath(), iterator.next());
+            default:
+                throw new IllegalArgumentException(part.getType() + "is not supported for redis query derivation");
+        }
     }
 
     @Override
-    protected TarantoolQueryChain and(Part part, TarantoolQueryChain base, Iterator<Object> iterator) {
-        return null;
+    protected TarantoolQuery and(Part part, TarantoolQuery base, Iterator<Object> iterator) {
+        throw new UnsupportedOperationException("and is not supported");
     }
 
     @Override
-    protected TarantoolQueryChain or(TarantoolQueryChain base, TarantoolQueryChain criteria) {
-        return null;
+    protected TarantoolQuery or(TarantoolQuery base, TarantoolQuery criteria) {
+        throw new UnsupportedOperationException("or is not supported");
     }
 
     @Override
-    protected KeyValueQuery<TarantoolQueryChain> complete(TarantoolQueryChain criteria, Sort sort) {
-        return null;
+    protected KeyValueQuery<TarantoolQuery> complete(TarantoolQuery criteria, Sort sort) {
+        final KeyValueQuery<TarantoolQuery> tarantoolQueryKeyValueQuery = new KeyValueQuery<>(criteria);
+        tarantoolQueryKeyValueQuery.setSort(sort);
+        return tarantoolQueryKeyValueQuery;
     }
 }

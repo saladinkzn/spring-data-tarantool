@@ -16,12 +16,16 @@ import ru.shadam.tarantool.core.convert.MappingTarantoolConverter;
 import ru.shadam.tarantool.core.convert.TarantoolData;
 import ru.shadam.tarantool.core.convert.Tuple;
 import ru.shadam.tarantool.core.mapping.TarantoolMappingContext;
+import ru.shadam.tarantool.core.mapping.TarantoolPersistentEntity;
 import ru.shadam.tarantool.core.mapping.TarantoolPersistentProperty;
+import ru.shadam.tarantool.repository.query.TarantoolQuery;
 
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * @author sala
@@ -140,8 +144,9 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
         Assert.notNull(type, "Type to fetch must not be null!");
 
         final int spaceId = resolveSpaceId(type);
+        final int spaceIndexId = Optional.ofNullable(resolveEntity(type).getIdProperty().getSpaceIndexId()).orElse(0);
 
-        final List listOfTuples = ops.select(spaceId, 0, Collections.emptyList(), 0, Integer.MAX_VALUE, 2);
+        final List listOfTuples = ops.select(spaceId, spaceIndexId, Collections.emptyList(), 0, Integer.MAX_VALUE, Iterator.ALL.getValue());
         final List<List<Object>> tuples = (List<List<Object>>) listOfTuples;
 
         return tuples.stream().map(
@@ -165,8 +170,9 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
         Assert.notNull(type, "Type to fetch must not be null!");
 
         final int spaceId = resolveSpaceId(type);
+        final int spaceIndexId = Optional.ofNullable(resolveEntity(type).getIdProperty().getSpaceIndexId()).orElse(0);
 
-        final List listOfTuple = ops.select(spaceId, 0, Collections.singletonList(id), 0, 1, 0);
+        final List listOfTuple = ops.select(spaceId, spaceIndexId, Collections.singletonList(id), 0, 1, Iterator.EQ.getValue());
 
         final List<Object> tuple = (List<Object>) listOfTuple.get(0);
 
@@ -237,12 +243,7 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
      */
     @Override
     public long count(Class<?> type) {
-        int count = 0;
-        final Iterable<?> all = findAll(type);
-        for (Object ignored : all) {
-            count++;
-        }
-        return count;
+        return StreamSupport.stream(findAll(type).spliterator(), false).count();
     }
 
     /*
@@ -251,8 +252,34 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
      */
     @Override
     public <T> Iterable<T> find(final KeyValueQuery<?> query, final Class<T> type) {
-        throw new UnsupportedOperationException("");
+        Assert.notNull(query);
+        Assert.notNull(type);
 
+        int spaceId = resolveSpaceId(type);
+        //
+        TarantoolQuery tarantoolQuery = (TarantoolQuery) query.getCritieria();
+
+        TarantoolPersistentEntity<?> entity = this.mappingContext.getPersistentEntity(type);
+        TarantoolPersistentProperty persistentProperty = entity.getPersistentProperty(tarantoolQuery.getKey());
+        Integer spaceIndexId = persistentProperty.getSpaceIndexId();
+        if(spaceIndexId == null) {
+            throw new IllegalArgumentException("Cannot query for property without index");
+        }
+        // TODO: add support for composite index query
+        int offset = query.getOffset() == -1 ? 0 : query.getOffset();
+        int rows = query.getRows() == -1 ? Integer.MAX_VALUE : query.getRows();
+
+        List listOfTuples = ops.select(spaceId, spaceIndexId, Collections.singletonList(tarantoolQuery.getValue()), offset, rows, Iterator.EQ.getValue());
+        List<List<Object>> tuples = (List<List<Object>>) listOfTuples;
+
+        return tuples.stream()
+                .map(tuple -> {
+                    TarantoolData data = new TarantoolData(new Tuple(tuple));
+                    data.setSpaceId(spaceId);
+                    // data.setId(id);
+
+                    return converter.read(type, data);
+                }).collect(Collectors.toList());
     }
 
     /*
@@ -291,7 +318,7 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
      */
     @Override
     public long count(final KeyValueQuery<?> query, final Class<?> type) {
-        throw new UnsupportedOperationException("");
+        return StreamSupport.stream(find(query, type).spliterator(), false).count();
     }
 
 
@@ -302,6 +329,10 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
 
     private int resolveSpaceId(Class<?> type) {
         return this.mappingContext.getPersistentEntity(type).getSpaceId();
+    }
+
+    private TarantoolPersistentEntity<?> resolveEntity(Class<?> type) {
+        return this.mappingContext.getPersistentEntity(type);
     }
 
     @Override
