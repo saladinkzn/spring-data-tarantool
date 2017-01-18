@@ -17,19 +17,19 @@ public enum Iterator {
      */
     ALL(2),
     /**
-     *  Lesser than (<) comparison. Tuples are returned in descending order by index key.
+     *  Lesser than (&le;) comparison. Tuples are returned in descending order by index key.
      */
     LT(3),
     /**
-     *  Lesser than or equal to (<=) comparison. Tuples are returned in descending order by index key.
+     *  Lesser than or equal to (&le;=) comparison. Tuples are returned in descending order by index key.
      */
     LE(4),
     /**
-     * Greater or equal to (>=) comparison
+     * Greater or equal to (&gt;=) comparison
      */
     GE(5),
     /**
-     * Greater than (>) comparison. Tuples are returned in ascending order by index key.
+     * Greater than (&gt;) comparison. Tuples are returned in ascending order by index key.
      */
     GT(6);
 
