@@ -30,11 +30,11 @@ final class BinaryConverters {
      * @since 1.7
      */
     @ReadingConverter
-    static final class StringToEnumConverterFactory implements ConverterFactory<byte[], Enum<?>> {
+    static final class StringToEnumConverterFactory implements ConverterFactory<String, Enum<?>> {
 
         @Override
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        public <T extends Enum<?>> Converter<byte[], T> getConverter(Class<T> targetType) {
+        public <T extends Enum<?>> Converter<String, T> getConverter(Class<T> targetType) {
 
             Class<?> enumType = targetType;
             while (enumType != null && !enumType.isEnum()) {
@@ -65,45 +65,6 @@ final class BinaryConverters {
                 }
                 return Enum.valueOf(this.enumType, source.trim());
             }
-        }
-    }
-
-    /**
-     * @author Christoph Strobl
-     * @since 1.7
-     */
-    @WritingConverter
-    static class BooleanToNumberConverter implements Converter<Boolean, Number> {
-
-        final int _true = 1;
-        final int _false = 0;
-
-        @Override
-        public Number convert(Boolean source) {
-
-            if (source == null) {
-                return null;
-            }
-
-            return source ? _true : _false;
-        }
-    }
-
-    /**
-     * @author Christoph Strobl
-     * @since 1.7
-     */
-    @ReadingConverter
-    static class NumberToBooleanConverter implements Converter<Number, Boolean> {
-
-        @Override
-        public Boolean convert(Number source) {
-
-            if (source == null) {
-                return null;
-            }
-
-            return (source.intValue() == 1) ? Boolean.TRUE : Boolean.FALSE;
         }
     }
 

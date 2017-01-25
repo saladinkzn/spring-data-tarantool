@@ -88,8 +88,6 @@ public class CustomConversions {
 
         toRegister.add(new BinaryConverters.EnumToStringConverter());
         toRegister.add(new BinaryConverters.StringToEnumConverterFactory());
-        toRegister.add(new BinaryConverters.BooleanToNumberConverter());
-        toRegister.add(new BinaryConverters.NumberToBooleanConverter());
         toRegister.add(new BinaryConverters.DateToNumberConverter());
         toRegister.add(new BinaryConverters.NumberToDateConverter());
 
@@ -469,7 +467,8 @@ public class CustomConversions {
          */
         private static boolean isTarantoolBasicType(Class<?> type) {
             // MsgPack supported classes:
-            return Number.class.isAssignableFrom(type) ||
+            return Boolean.class.isAssignableFrom(type) ||
+                    Number.class.isAssignableFrom(type) ||
                     String.class.isAssignableFrom(type) ||
                     byte[].class.isAssignableFrom(type);
         }

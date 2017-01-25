@@ -31,13 +31,13 @@ import java.util.stream.StreamSupport;
  * @author sala
  */
 public class TarantoolKeyValueTemplate implements KeyValueOperations {
-    private TarantoolClientOps<Integer, Object, Object, List> ops;
+    private TarantoolClientOps<Integer, List<?>, Object, List<?>> ops;
     private MappingTarantoolConverter converter;
     private final TarantoolMappingContext mappingContext;
     private final IdentifierGenerator identifierGenerator;
 
 
-    public TarantoolKeyValueTemplate(TarantoolClientOps<Integer, Object, Object, List> ops, MappingTarantoolConverter converter, TarantoolMappingContext mappingContext) {
+    public TarantoolKeyValueTemplate(TarantoolClientOps<Integer, List<?>, Object, List<?>> ops, MappingTarantoolConverter converter, TarantoolMappingContext mappingContext) {
         this.ops = ops;
         this.converter = converter;
         this.mappingContext = mappingContext;

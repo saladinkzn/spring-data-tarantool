@@ -343,20 +343,24 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
 
     private static boolean isTarantoolNativeType(Class<?> type) {
         // MsgPack supported classes:
-        return Number.class.isAssignableFrom(type) ||
+        return Boolean.class.isAssignableFrom(type) ||
+                Number.class.isAssignableFrom(type) ||
                 String.class.isAssignableFrom(type) ||
                 byte[].class.isAssignableFrom(type);
     }
 
     public Object toTarantoolNativeType(Object value, Class<?> targetType) {
-        if (value instanceof Number ||
+        if (value instanceof Boolean ||
+            value instanceof Number ||
             value instanceof String ||
             value instanceof byte[]
         ) {
             return value;
         }
 
-        if(ClassUtils.isAssignable(Number.class, targetType)) {
+        if (ClassUtils.isAssignable(Boolean.class, targetType)) {
+            return conversionService.convert(value, Boolean.class);
+        } else if (ClassUtils.isAssignable(Number.class, targetType)) {
             return conversionService.convert(value, Number.class);
         } else if (ClassUtils.isAssignable(String.class, targetType)) {
             return conversionService.convert(value, String.class);

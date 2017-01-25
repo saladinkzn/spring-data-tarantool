@@ -54,9 +54,10 @@ targetCompatibility = JavaVersion.VERSION_1_8
 
 dependencies {
   compile 'org.springframework.data:spring-data-keyvalue:1.1.6.RELEASE'
-  compile 'org.tarantool:connector:1.7.0'
+  compile 'org.tarantool:connector:1.7.1'
 
-  testCompile 'junit:junit:4.12'
+  testCompile 'junit:junit:4.12'      
+  testCompile 'org.mockito:mockito-core:1.10.19'
   testCompile 'org.slf4j:slf4j-simple:1.7.22'
 }
 
