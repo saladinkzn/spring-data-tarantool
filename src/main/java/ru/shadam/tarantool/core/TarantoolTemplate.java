@@ -58,6 +58,9 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
         initialized = true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public List<V> select(int spaceId, int indexId, Pageable pageable) {
         final List<List<?>> listOfTuples = (List<List<?>>) syncOps.select(spaceId, indexId, Collections.emptyList(), pageable.getOffset(), pageable.getPageSize(), Iterator.ALL.getValue());
@@ -65,8 +68,10 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
                 .map(it -> (V) valueSerializer.deserialize(it))
                 .collect(Collectors.toList());
     }
-    
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public List<V> select(int spaceId, int indexId, K key, Pageable pageable, Iterator iterator) {
         final Object serializedKey = keySerializer.serialize(key);
@@ -79,6 +84,9 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
                 .collect(Collectors.toList());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public V insert(int spaceId, V value) {
         final List tuple = coerceToTuple(valueSerializer.serialize(value));
@@ -89,6 +97,9 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
         return (V) valueSerializer.deserialize(result);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public V replace(int spaceId, V value) {
         final Object serializedValue = valueSerializer.serialize(value);
@@ -99,6 +110,9 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
         return ((V) valueSerializer.deserialize(result));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @SuppressWarnings("unchecked")
     @Override
     public V update(int spaceId, int indexId, K key, List<Operation> operation) {
@@ -114,6 +128,9 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
         return ((V) valueSerializer.deserialize(tuple));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void upsert(int spaceId, K key, V value, List<Operation> operations) {
         final Object serializedKey = keySerializer.serialize(key);
@@ -128,7 +145,9 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
         syncOps.upsert(spaceId, keyTuple, valueTuple, listOfOperations);
     }
 
-
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public V delete(int spaceId, K key) {
         final Object serializedKey = keySerializer.serialize(key);
@@ -145,8 +164,6 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
 
         return Collections.singletonList(value);
     }
-
-
 
     public void setSyncOps(TarantoolClientOps<Integer, List<?>, Object, List<?>> syncOps) {
         this.syncOps = syncOps;
