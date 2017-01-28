@@ -1,0 +1,7 @@
+version: "3"
+services:
+  tarantool:
+    build: tarantool/
+    image: ru.shadam.tarantool/spring-data-tarantool-tests:0.2.0
+    ports:
+      - 3301:3301

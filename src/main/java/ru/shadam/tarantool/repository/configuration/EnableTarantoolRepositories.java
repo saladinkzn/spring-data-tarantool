@@ -83,4 +83,10 @@ public @interface EnableTarantoolRepositories {
      * @return
      */
     String namedQueriesLocation() default "";
+
+    /**
+     * Configures whether nested repository-interfaces (e.g. defined as inner classes) should be discovered by the
+     * repositories infrastructure.
+     */
+    boolean considerNestedRepositories() default false;
 }

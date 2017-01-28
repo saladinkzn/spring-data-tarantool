@@ -19,10 +19,7 @@ import ru.shadam.tarantool.core.mapping.TarantoolPersistentEntity;
 import ru.shadam.tarantool.core.mapping.TarantoolPersistentProperty;
 
 import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author sala
@@ -87,7 +84,14 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
         entity.doWithProperties(new PropertyHandler<TarantoolPersistentProperty>() {
             @Override
             public void doWithPersistentProperty(TarantoolPersistentProperty persistentProperty) {
-                Path currentPath = !path.isEmpty() ? Path.concat(path, persistentProperty.getTupleIndex()) : Path.of(persistentProperty.getTupleIndex());
+                if(!persistentProperty.getTupleIndex().isPresent()) {
+                    // Skip property that doesn't have tupleIndex
+                    return;
+                }
+
+                final int tupleIndex = persistentProperty.getTupleIndex().getAsInt();
+
+                Path currentPath = !path.isEmpty() ? Path.concat(path, tupleIndex) : Path.of(tupleIndex);
 
                 PreferredConstructor<?, TarantoolPersistentProperty> constructor = entity.getPersistenceConstructor();
 
@@ -122,12 +126,7 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
                     accessor.setProperty(persistentProperty, MappingTarantoolConverter.this.readInternal(currentPath, targetType, source));
                 } else {
                     if (persistentProperty.isIdProperty() && path.isEmpty()) {
-                        if (source.getTuple().get(path) == null) {
-                            accessor.setProperty(persistentProperty, MappingTarantoolConverter.this.fromTuple(source.getTuple().get(currentPath), persistentProperty.getActualType()));
-                        } else {
-                            accessor.setProperty(persistentProperty, source.getId());
-                        }
-
+                        accessor.setProperty(persistentProperty, MappingTarantoolConverter.this.fromTuple(source.getTuple().get(currentPath), persistentProperty.getActualType()));
                     }
 
                     Class<?> ttu = MappingTarantoolConverter.this.getTypeHint(currentPath, source.getTuple(), persistentProperty.getActualType());
@@ -169,7 +168,7 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
         sink.setSpaceId(entity.getSpaceId());
 
         writeInternal(entity.getSpaceId(), Path.empty(), source, entity.getTypeInformation(), sink);
-        sink.setId(getConversionService().convert(entity.getIdentifierAccessor(source).getIdentifier(), Long.class));
+        sink.setId(getConversionService().convert(entity.getIdentifierAccessor(source).getIdentifier(), entity.getIdProperty().getType()));
     }
 
     /**
@@ -195,7 +194,15 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
         entity.doWithProperties(new PropertyHandler<TarantoolPersistentProperty>() {
             @Override
             public void doWithPersistentProperty(TarantoolPersistentProperty persistentProperty) {
-                Path propertyPath = (!path.isEmpty() ? Path.concat(path, persistentProperty.getTupleIndex()) : Path.of(persistentProperty.getTupleIndex()));
+                final OptionalInt optTupleIndex = persistentProperty.getTupleIndex();
+                if(!optTupleIndex.isPresent()) {
+                    // Do not write property without tuple index
+                    return;
+                }
+
+                final int tupleIndex = optTupleIndex.getAsInt();
+
+                Path propertyPath = (!path.isEmpty() ? Path.concat(path, tupleIndex) : Path.of(tupleIndex));
 
                 if (persistentProperty.isIdProperty()) {
                     sink.getTuple().set(propertyPath, accessor.getProperty(persistentProperty));
@@ -427,7 +434,15 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
         @Override
         @SuppressWarnings("unchecked")
         public <T> T getPropertyValue(TarantoolPersistentProperty property) {
-            return (T) conversionService.convert(source.getTuple().get(Path.of(property.getTupleIndex())), property.getActualType());
+            final OptionalInt optTupleIndex = property.getTupleIndex();
+            if(!optTupleIndex.isPresent()) {
+                // TODO: is it right?
+                return (T) conversionService.convert(null, property.getActualType());
+            }
+
+            int tupleIndex = optTupleIndex.getAsInt();
+
+            return (T) conversionService.convert(source.getTuple().get(Path.of(tupleIndex)), property.getActualType());
         }
     }
 }

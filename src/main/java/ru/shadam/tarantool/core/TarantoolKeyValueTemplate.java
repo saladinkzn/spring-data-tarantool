@@ -23,7 +23,6 @@ import ru.shadam.tarantool.repository.query.TarantoolQuery;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -144,7 +143,8 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
         Assert.notNull(type, "Type to fetch must not be null!");
 
         final int spaceId = resolveSpaceId(type);
-        final int spaceIndexId = Optional.ofNullable(resolveEntity(type).getIdProperty().getSpaceIndexId()).orElse(0);
+        final int spaceIndexId = resolveEntity(type).getIdProperty().getSpaceIndexId()
+                .orElseThrow(() -> new IllegalArgumentException("Cannot query for property without indexId"));
 
         final List listOfTuples = ops.select(spaceId, spaceIndexId, Collections.emptyList(), 0, Integer.MAX_VALUE, Iterator.ALL.getValue());
         final List<List<Object>> tuples = (List<List<Object>>) listOfTuples;
@@ -170,9 +170,14 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
         Assert.notNull(type, "Type to fetch must not be null!");
 
         final int spaceId = resolveSpaceId(type);
-        final int spaceIndexId = Optional.ofNullable(resolveEntity(type).getIdProperty().getSpaceIndexId()).orElse(0);
+        final int spaceIndexId = resolveEntity(type).getIdProperty().getSpaceIndexId()
+                .orElseThrow(() -> new IllegalArgumentException("Cannot query for property without indexId"));
 
         final List listOfTuple = ops.select(spaceId, spaceIndexId, Collections.singletonList(id), 0, 1, Iterator.EQ.getValue());
+
+        if(listOfTuple.isEmpty()) {
+            return null;
+        }
 
         final List<Object> tuple = (List<Object>) listOfTuple.get(0);
 
@@ -261,10 +266,9 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
 
         TarantoolPersistentEntity<?> entity = this.mappingContext.getPersistentEntity(type);
         TarantoolPersistentProperty persistentProperty = entity.getPersistentProperty(tarantoolQuery.getKey());
-        Integer spaceIndexId = persistentProperty.getSpaceIndexId();
-        if(spaceIndexId == null) {
-            throw new IllegalArgumentException("Cannot query for property without index");
-        }
+        int spaceIndexId = persistentProperty.getSpaceIndexId()
+                .orElseThrow(() -> new IllegalArgumentException("Cannot query for property without index"));
+
         // TODO: add support for composite index query
         int offset = query.getOffset() == -1 ? 0 : query.getOffset();
         int rows = query.getRows() == -1 ? Integer.MAX_VALUE : query.getRows();
@@ -328,7 +332,12 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
     }
 
     private int resolveSpaceId(Class<?> type) {
-        return this.mappingContext.getPersistentEntity(type).getSpaceId();
+        final Integer spaceId = this.mappingContext.getPersistentEntity(type).getSpaceId();
+
+        if(spaceId == null) {
+            throw new IllegalArgumentException("Cannot detect spaceId for type: " + type + ". Did you add @SpaceId annotation?");
+        }
+        return spaceId;
     }
 
     private TarantoolPersistentEntity<?> resolveEntity(Class<?> type) {

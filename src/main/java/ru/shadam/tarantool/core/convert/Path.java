@@ -1,5 +1,7 @@
 package ru.shadam.tarantool.core.convert;
 
+import org.springframework.util.Assert;
+
 import java.util.*;
 
 /**
@@ -21,14 +23,20 @@ public class Path {
     }
 
     public static Path of(Integer index) {
+        Assert.notNull(index, "index cannot be null");
+
         return new Path(Collections.singletonList(index));
     }
 
     public static Path of(Integer... indexes) {
+        Assert.noNullElements(indexes);
+
         return new Path(Arrays.asList(indexes));
     }
 
     public static Path concat(Path path, Integer index) {
+        Assert.notNull(index, "index cannot be null");
+
         if(path.isEmpty()) {
             return Path.of(index);
         }

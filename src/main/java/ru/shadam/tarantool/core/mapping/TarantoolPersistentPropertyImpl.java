@@ -3,6 +3,7 @@ package ru.shadam.tarantool.core.mapping;
 import org.springframework.data.mapping.Association;
 import org.springframework.data.mapping.model.AnnotationBasedPersistentProperty;
 import org.springframework.data.mapping.model.SimpleTypeHolder;
+import org.springframework.util.Assert;
 import ru.shadam.tarantool.annotation.Index;
 import ru.shadam.tarantool.annotation.Tuple;
 
@@ -10,6 +11,7 @@ import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 
 /**
@@ -32,10 +34,22 @@ public class TarantoolPersistentPropertyImpl extends AnnotationBasedPersistentPr
                 .map(Tuple::index)
                 .orElse(null);
 
+        if(tupleIndex != null) {
+            Assert.isTrue(tupleIndex >= 0, "Tuple index cannot be negative");
+        }
+
         this.spaceIndex =
                 Optional.ofNullable(findPropertyOrOwnerAnnotation(Index.class))
                 .map(Index::id)
-                .orElse(null);
+                .orElseGet(() -> isIdProperty() ? 0 : null);
+
+        if(spaceIndex != null) {
+            Assert.isTrue(spaceIndex >= 0, "Space index cannot be negative");
+        }
+
+        if(isIdProperty()) {
+            Assert.isTrue(tupleIndex != null, "Id property must have tuple index");
+        }
     }
 
     @Override
@@ -43,13 +57,13 @@ public class TarantoolPersistentPropertyImpl extends AnnotationBasedPersistentPr
         return super.isIdProperty() || SUPPORTED_ID_PROPERTY_NAMES.contains(getName());
     }
 
-    public Integer getTupleIndex() {
-        return tupleIndex;
+    public OptionalInt getTupleIndex() {
+        return tupleIndex == null ? OptionalInt.empty() : OptionalInt.of(tupleIndex);
     }
 
     @Override
-    public Integer getSpaceIndexId() {
-        return spaceIndex;
+    public OptionalInt getSpaceIndexId() {
+        return spaceIndex == null ? OptionalInt.empty() : OptionalInt.of(spaceIndex);
     }
 
     @Override

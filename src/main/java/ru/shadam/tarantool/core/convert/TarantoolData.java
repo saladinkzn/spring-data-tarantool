@@ -21,6 +21,8 @@ public class TarantoolData {
         return spaceId;
     }
 
+    // TODO: remove spaceId as it's not required
+    @Deprecated
     public void setSpaceId(int spaceId) {
         this.spaceId = spaceId;
     }
