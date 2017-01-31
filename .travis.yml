@@ -1,9 +1,28 @@
+dist: trusty
+sudo: required
 language: java
 jdk:
   - oraclejdk8
 
 before_install:
   - chmod +x gradlew
+  - sudo apt-get update
+  - sudo apt-cache madison docker-engine
+  - sudo apt-get install docker-engine=${DOCKER_VERSION}
+  - sudo rm /usr/local/bin/docker-compose
+  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
+  - chmod +x docker-compose
+  - sudo mv docker-compose /usr/local/bin
+
+before_cache:
+  - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
+  - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
+cache:
+  directories:
+    - $HOME/.gradle/caches/
+    - $HOME/.gradle/wrapper/
+script:
+  ./gradlew check --stacktrace --no-daemon
 
 env:
   global:
@@ -13,6 +32,8 @@ env:
   - secure: "DLCb7/ai0FNiUjflrxeW/iPtFlBZ4cuebZHL5Oh+/WFgc2JXEUTaXWldTlVzrskfGUcnc6+PejSXqARmSJxEtaK/XIRDa7RdS4KgfYJ5H2DMw8fmzre+5MABsIMcECgBXAl2hc2x6pE7ni9zSimQypthgiz+clqlZ+PM5WJxOHwvpInNigZziKG5eW4xkALEFlcOyuB3kvRXZ5i7XJpj0B2jRHXBPpdVxBUbeKhUHZ1vecBIgoJHAlkKJAmcaqKq6NrB
   MsKM8Al+KFoytPJlt0MPiLRfTZ49JucMQZgF5tNiJa1i5ByBi86GBRoB8Ha7OqafvOAZCuRM48TEbQ2p1DqEWtirKXC3wC7hNpiz55dNPDqKFjjBtLJTlnJ0I/7qxCSN/JcVwdxclun5n04aixmjh3jz0l8JRxq2IjweA07DktGWQWalYBk9La8PmkSesbIEctwDRtuGJMteuOcYf6T9OQ71wkCi4WBBEWg9tUGqifx2flZbku/IKYwr+8LIHuG56ypUuTa8kbEqGKZ
   gY/1WofmjsMTpIdG+DtBZgLOl4J9ToO4Cn1V+sLwSTlCsrBrjAA+e77BJZuMgPue64s8hgm16M03wss298oiZJAZuwvkQgmy02HmDPW6Hyis4wHDTKT02luqEWzBKml+ijw+/0l7duygD0ezuodeLhA4="
+  - DOCKER_COMPOSE_VERSION: 1.10.0
+  - DOCKER_VERSION: 1.13.0-0~ubuntu-trusty
 
 
 deploy:

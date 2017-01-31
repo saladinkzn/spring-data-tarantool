@@ -68,6 +68,20 @@ dependencies {
   testCompile 'com.palantir.docker.compose:docker-compose-rule:0.28.1'
 }
 
+test {
+  testLogging {
+    events "passed", "failed"
+    exceptionFormat "full"
+  }
+}
+
+integrationTest {
+  testLogging {
+    events "passed", "failed"
+    exceptionFormat "full"
+  }
+}
+
 project.tasks.integrationTest.mustRunAfter(project.tasks.test)
 project.tasks.check.dependsOn(project.tasks.integrationTest)
 

@@ -174,7 +174,7 @@ public class RepositoryIntegrationTests {
 
         @Bean
         public SocketChannelProvider socketChannelProvider(
-            @Value("${DOCKER_HOST_IP:192.168.99.100}") String DOCKER_HOST_IP
+            @Value("${DOCKER_HOST_IP:localhost}") String DOCKER_HOST_IP
         ) {
             System.out.println("DOCKER_HOST_IP: " + DOCKER_HOST_IP);
             return new SimpleSocketChannelProvider(DOCKER_HOST_IP, 3301);
