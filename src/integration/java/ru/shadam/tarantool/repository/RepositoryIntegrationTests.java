@@ -1,4 +1,4 @@
-package ru.shadam.tarantool;
+package ru.shadam.tarantool.repository;
 
 import com.google.common.collect.Iterables;
 import com.palantir.docker.compose.DockerComposeRule;
@@ -8,15 +8,17 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.data.repository.CrudRepository;
 import org.tarantool.*;
 import ru.shadam.tarantool.core.SimpleSocketChannelProvider;
-import ru.shadam.tarantool.entity.LogEntry;
-import ru.shadam.tarantool.entity.User;
+import ru.shadam.tarantool.repository.entity.LogEntry;
+import ru.shadam.tarantool.repository.entity.User;
 import ru.shadam.tarantool.repository.configuration.EnableTarantoolRepositories;
 
 import java.util.Arrays;
@@ -26,7 +28,6 @@ import java.util.List;
  * @author sala
  */
 public class RepositoryIntegrationTests {
-
     @ClassRule
     public static DockerComposeRule docker = DockerComposeRule.builder()
             .file("src/integration/resources/docker/docker-compose.yml")
@@ -155,18 +156,28 @@ public class RepositoryIntegrationTests {
     @Configuration
     public static class TarantoolConfiguration {
         @Bean
+        private static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
+            return new PropertySourcesPlaceholderConfigurer();
+        }
+
+        @Bean
         @Autowired
         public TarantoolClient tarantoolClient(
             SocketChannelProvider socketChannelProvider
         ) {
             final TarantoolClientConfig config = new TarantoolClientConfig();
             config.username = "guest";
+            config.initTimeoutMillis = 5000;
+            config.writeTimeoutMillis = 5000;
             return new TarantoolClientImpl(socketChannelProvider, config);
         }
 
         @Bean
-        public SocketChannelProvider socketChannelProvider() {
-            return new SimpleSocketChannelProvider("192.168.99.100", 3301);
+        public SocketChannelProvider socketChannelProvider(
+            @Value("${DOCKER_HOST_IP:192.168.99.100}") String DOCKER_HOST_IP
+        ) {
+            System.out.println("DOCKER_HOST_IP: " + DOCKER_HOST_IP);
+            return new SimpleSocketChannelProvider(DOCKER_HOST_IP, 3301);
         }
 
         @Bean

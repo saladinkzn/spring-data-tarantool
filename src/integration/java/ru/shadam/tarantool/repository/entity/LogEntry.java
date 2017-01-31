@@ -1,4 +1,4 @@
-package ru.shadam.tarantool.entity;
+package ru.shadam.tarantool.repository.entity;
 
 import org.springframework.data.annotation.Id;
 import ru.shadam.tarantool.annotation.SpaceId;

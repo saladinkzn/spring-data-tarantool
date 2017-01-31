@@ -1,4 +1,4 @@
-package ru.shadam.tarantool.entity;
+package ru.shadam.tarantool.repository.entity;
 
 import ru.shadam.tarantool.annotation.SpaceId;
 import ru.shadam.tarantool.annotation.Tuple;

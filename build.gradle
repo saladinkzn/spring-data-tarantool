@@ -68,6 +68,9 @@ dependencies {
   testCompile 'com.palantir.docker.compose:docker-compose-rule:0.28.1'
 }
 
+project.tasks.integrationTest.mustRunAfter(project.tasks.test)
+project.tasks.check.dependsOn(project.tasks.integrationTest)
+
 task wrapper(type: Wrapper) {
   gradleVersion = '3.3'
 }
