@@ -1,11 +1,10 @@
 package ru.shadam.tarantool.serializer;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -13,30 +12,32 @@ import java.util.List;
  * @author sala
  */
 public class PlainTarantoolSerializerTest {
-    private PlainTarantoolSerializer<List> serializer;
-
-    @Before
-    public void prepare() {
-        serializer = new PlainTarantoolSerializer<>();
-    }
-
     @Test
     public void testSerializeEnum() {
-        final ArrayList tuple = new ArrayList();
-        tuple.add(TestEnum.FIRST);
-        final List serialized = serializer.serialize(tuple);
+        PlainTarantoolSerializer<TestEnum> serializer = new PlainTarantoolSerializer<>(TestEnum.class);
+        final List tuple = serializer.serialize(TestEnum.FIRST);
         Assert.assertEquals("FIRST", tuple.get(0));
     }
 
     @Test
     public void testSerializeDate() {
+        final PlainTarantoolSerializer<Date> datePlainTarantoolSerializer = new PlainTarantoolSerializer<>(Date.class);
         Calendar calendar = Calendar.getInstance();
         calendar.set(2017, 1, 1);
         final Date date = calendar.getTime();
-        final ArrayList tuple = new ArrayList();
-        tuple.add(date);
-        final List serialized = serializer.serialize(tuple);
+        final List serialized = datePlainTarantoolSerializer.serialize(date);
         Assert.assertEquals(date.getTime(), serialized.get(0));
+    }
+
+    /**
+     * Tarantool returns inserted number as minimal size Number
+     */
+    @Test
+    public void deserializeLongFromInt() {
+        final PlainTarantoolSerializer<Long> longPlainTarantoolSerializer = new PlainTarantoolSerializer<>(Long.class);
+
+        final Long deserialized = longPlainTarantoolSerializer.deserialize(Collections.singletonList(1));
+        Assert.assertEquals(1L, deserialized.longValue());
     }
 
     private enum TestEnum { FIRST; }

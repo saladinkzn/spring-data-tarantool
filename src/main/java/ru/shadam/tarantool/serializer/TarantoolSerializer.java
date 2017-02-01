@@ -7,7 +7,7 @@ import java.util.List;
  */
 public interface TarantoolSerializer<T> {
 
-    Object serialize(T value);
+    List serialize(T value);
 
     T deserialize(List value);
 }
