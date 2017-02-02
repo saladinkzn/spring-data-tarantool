@@ -17,15 +17,16 @@ public class PlainTarantoolSerializer<T> implements TarantoolSerializer<T> {
     private static final Class<?>[] NATIVE_TYPES = new Class<?>[] {
         Boolean.class, Number.class, String.class, byte[].class
     };
+    private final Class<T> desiredClass;
+    private final ConfigurableConversionService conversionService;
 
-    private ConfigurableConversionService conversionService;
 
-
-    public PlainTarantoolSerializer() {
-        this(new TarantoolDefaultConversionService());
+    public PlainTarantoolSerializer(Class<T> desiredClass) {
+        this(desiredClass, new TarantoolDefaultConversionService());
     }
 
-    public PlainTarantoolSerializer(ConfigurableConversionService conversionService) {
+    public PlainTarantoolSerializer(Class<T> desiredClass, ConfigurableConversionService conversionService) {
+        this.desiredClass = desiredClass;
         this.conversionService = conversionService;
 
         conversionService.addConverter(Date.class, Number.class, (Converter<Date, Number>) Date::getTime);
@@ -34,26 +35,19 @@ public class PlainTarantoolSerializer<T> implements TarantoolSerializer<T> {
 
     @Override
     public List serialize(T value) {
-        if(value instanceof List) {
-            final List<Object> tuple = (List<Object>) value;
-            for (int i = 0; i < tuple.size(); i++) {
-                Object element = tuple.get(i);
-                if(supported(element)) {
-                    // Do nothing
-                    continue;
-                }
-
-                tuple.set(i, convertToTarantoolNative(element));
-            }
-            return tuple;
-        }
-
         return Collections.singletonList(convertToTarantoolNative(value));
     }
 
     @Override
     public T deserialize(List value) {
-        return (T) value;
+        if(value == null) {
+            return null;
+        }
+
+        if(value.size() != 1) {
+            throw new IllegalArgumentException("Tuples are not supported as keys by this serializer");
+        }
+        return conversionService.convert(value.get(0), desiredClass);
     }
 
     public Object convertToTarantoolNative(Object item) {

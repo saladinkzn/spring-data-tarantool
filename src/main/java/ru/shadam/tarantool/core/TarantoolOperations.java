@@ -64,13 +64,15 @@ public interface TarantoolOperations<K, V> {
      */
     List<V> select(int spaceId, int indexId, K key, Pageable pageable, Iterator iterator);
 
+    List<K> selectKeys(int spaceId, int indexId);
+
     /**
      * Insert entity into space
      * @param spaceId id of space to insert to
      * @param value value to insert
      * @return inserted value
      */
-    V insert(int spaceId, V value);
+    V insert(int spaceId, K key, V value);
 
     /**
      * Insert entity into space if key doesn't exists or replace by
@@ -78,7 +80,7 @@ public interface TarantoolOperations<K, V> {
      * @param value
      * @return
      */
-    V replace(int spaceId, V value);
+    V replace(int spaceId, K key, V value);
 
     /**
      * Apply single operation to entity selected by key
@@ -118,4 +120,9 @@ public interface TarantoolOperations<K, V> {
      * @return deleted entity
      */
     V delete(int spaceId, K key);
+
+    default void deleteAll(int spaceId) {
+        final List<K> all = selectKeys(spaceId, 0);
+        all.forEach(it -> delete(spaceId, it));
+    }
 }
