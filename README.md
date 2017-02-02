@@ -14,7 +14,7 @@ repositories {
 }
 
 dependencies {
-  compile 'ru.shadam:spring-data-tarantool:0.1.0'
+  compile 'ru.shadam:spring-data-tarantool:0.2.0'
 }
 ```
 
@@ -24,7 +24,7 @@ and enable tarantool repositories:
 @EnableTarantoolRepositories 
 public class ApplicationConfiguration {
     @Bean
-    public TarantoolClientOps<Integer, Object, Object, List> tarantoolSyncOps(
+    public TarantoolClientOps<Integer, List<?>, Object, List<?>> tarantoolSyncOps(
         TarantoolClient tarantoolClient
     ) {
         return tarantoolClient.syncOps();
