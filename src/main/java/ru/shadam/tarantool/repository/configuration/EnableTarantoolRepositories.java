@@ -66,7 +66,7 @@ public @interface EnableTarantoolRepositories {
      */
     String keyValueTemplateRef() default "tarantoolKeyValueTemplate";
 
-    String tarantolSyncOpsRef() default "tarantoolSyncOps";
+    String tarantoolSyncOpsRef() default "tarantoolSyncOps";
 
     /**
      * Returns the postfix to be used when looking up custom repository implementations. Defaults to {@literal Impl}. So

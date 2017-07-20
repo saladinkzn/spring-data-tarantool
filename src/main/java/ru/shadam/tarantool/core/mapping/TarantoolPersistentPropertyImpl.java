@@ -25,7 +25,7 @@ public class TarantoolPersistentPropertyImpl extends AnnotationBasedPersistentPr
     }
 
     private final Integer tupleIndex;
-    private final Integer spaceIndex;
+    private final String spaceName;
 
     public TarantoolPersistentPropertyImpl(Field field, PropertyDescriptor propertyDescriptor, TarantoolPersistentEntity<?> owner, SimpleTypeHolder simpleTypeHolder) {
         super(field, propertyDescriptor, owner, simpleTypeHolder);
@@ -38,13 +38,13 @@ public class TarantoolPersistentPropertyImpl extends AnnotationBasedPersistentPr
             Assert.isTrue(tupleIndex >= 0, "Tuple index cannot be negative");
         }
 
-        this.spaceIndex =
+        this.spaceName =
                 Optional.ofNullable(findPropertyOrOwnerAnnotation(Index.class))
-                .map(Index::id)
-                .orElseGet(() -> isIdProperty() ? 0 : null);
+                .map(Index::value)
+                .orElse(null);
 
-        if(spaceIndex != null) {
-            Assert.isTrue(spaceIndex >= 0, "Space index cannot be negative");
+        if(spaceName != null) {
+            Assert.hasText(spaceName, "Space index cannot be negative");
         }
 
         if(isIdProperty()) {
@@ -57,13 +57,14 @@ public class TarantoolPersistentPropertyImpl extends AnnotationBasedPersistentPr
         return super.isIdProperty() || SUPPORTED_ID_PROPERTY_NAMES.contains(getName());
     }
 
+    @Override
     public OptionalInt getTupleIndex() {
         return tupleIndex == null ? OptionalInt.empty() : OptionalInt.of(tupleIndex);
     }
 
     @Override
-    public OptionalInt getSpaceIndexId() {
-        return spaceIndex == null ? OptionalInt.empty() : OptionalInt.of(spaceIndex);
+    public Optional<String> getSpaceIndexName() {
+        return Optional.ofNullable(spaceName);
     }
 
     @Override

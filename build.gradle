@@ -1,6 +1,8 @@
 plugins {
   id 'java'
   id 'com.ewerk.gradle.plugins.integration-test' version "1.0.6"
+  id 'jacoco'
+  id 'com.github.kt3k.coveralls' version '2.6.3'
   id 'ru.shadam.publish-plugin' version '0.3.0' apply false
   id "com.jfrog.bintray" version "1.7.3" apply false
   id "com.jfrog.artifactory" version "4.4.12" apply(false)
@@ -9,6 +11,7 @@ plugins {
 apply plugin: 'ru.shadam.publish-plugin'
 apply plugin: (String)'com.jfrog.bintray'
 apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'idea'
 
 repositories {
   jcenter()
@@ -63,6 +66,7 @@ dependencies {
   testCompile 'junit:junit:4.12'      
   testCompile 'org.mockito:mockito-core:1.10.19'
   testCompile 'org.slf4j:slf4j-simple:1.7.22'
+  testCompile 'org.springframework:spring-test:4.2.9.RELEASE'
 
   testCompile 'com.google.guava:guava:19.0'
   testCompile 'com.palantir.docker.compose:docker-compose-rule:0.28.1'
@@ -85,6 +89,36 @@ integrationTest {
 project.tasks.integrationTest.mustRunAfter(project.tasks.test)
 project.tasks.check.dependsOn(project.tasks.integrationTest)
 
+task jacocoMerge(type: JacocoMerge) {
+  dependsOn project.tasks.allTests
+  group = 'verification'
+  executionData test, integrationTest
+}
+
+task mergedReport(type: JacocoReport) {
+  dependsOn project.tasks.jacocoMerge
+  group = 'verification'
+  executionData jacocoMerge.destinationFile
+  dependsOn jacocoMerge
+  sourceDirectories = files(sourceSets.main.java.srcDirs)
+  classDirectories = files(sourceSets.main.output.classesDir)
+  reports {
+    xml.enabled = true
+    html.enabled = true
+  }
+}
+
+coveralls {
+  sourceDirs = sourceSets.main.java.srcDirs.collect { it.toString() }
+  jacocoReportPath = mergedReport.reports.xml.destination
+}
+
+tasks.coveralls {
+  group = 'Coverage reports'
+
+  dependsOn mergedReport
+}
+
 task wrapper(type: Wrapper) {
-  gradleVersion = '3.3'
+  gradleVersion = '4.0.2'
 }

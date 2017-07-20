@@ -23,18 +23,6 @@ public class UpdateStringOperation extends Operation<UpdateStringOperator> {
         this.argument = argument;
     }
 
-    public int getPosition() {
-        return position;
-    }
-
-    public int getOffset() {
-        return offset;
-    }
-
-    public String getArgument() {
-        return argument;
-    }
-
     @Override
     public List<?> toTuple() {
         return Arrays.asList(operator.getValue(), fieldNumber, position, offset, argument);

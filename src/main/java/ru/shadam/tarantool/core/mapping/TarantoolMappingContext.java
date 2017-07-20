@@ -1,5 +1,6 @@
 package ru.shadam.tarantool.core.mapping;
 
+import org.springframework.data.keyvalue.core.mapping.KeySpaceResolver;
 import org.springframework.data.mapping.context.AbstractMappingContext;
 import org.springframework.data.mapping.model.SimpleTypeHolder;
 import org.springframework.data.util.TypeInformation;
@@ -11,9 +12,9 @@ import java.lang.reflect.Field;
  * @author sala
  */
 public class TarantoolMappingContext extends AbstractMappingContext<TarantoolPersistentEntity<?>, TarantoolPersistentProperty> {
-    private SpaceIdResolver fallbackKeySpaceResolver;
+    private KeySpaceResolver fallbackKeySpaceResolver;
 
-    public void setFallbackKeySpaceResolver(SpaceIdResolver fallbackKeySpaceResolver) {
+    public void setFallbackKeySpaceResolver(KeySpaceResolver fallbackKeySpaceResolver) {
         this.fallbackKeySpaceResolver = fallbackKeySpaceResolver;
     }
 
@@ -34,7 +35,10 @@ public class TarantoolMappingContext extends AbstractMappingContext<TarantoolPer
     }
 
     @Override
-    protected TarantoolPersistentProperty createPersistentProperty(Field field, PropertyDescriptor descriptor, TarantoolPersistentEntity<?> owner, SimpleTypeHolder simpleTypeHolder) {
+    protected TarantoolPersistentPropertyImpl createPersistentProperty(Field field,
+                                                                       PropertyDescriptor descriptor,
+                                                                       TarantoolPersistentEntity<?> owner,
+                                                                       SimpleTypeHolder simpleTypeHolder) {
         return new TarantoolPersistentPropertyImpl(field, descriptor, owner, simpleTypeHolder);
     }
 }

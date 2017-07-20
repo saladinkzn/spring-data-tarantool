@@ -2,7 +2,6 @@ package ru.shadam.tarantool.core;
 
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.keyvalue.core.IdentifierGenerator;
 import org.springframework.data.keyvalue.core.KeyValueCallback;
 import org.springframework.data.keyvalue.core.KeyValueOperations;
 import org.springframework.data.keyvalue.core.query.KeyValueQuery;
@@ -11,84 +10,230 @@ import org.springframework.data.mapping.PersistentProperty;
 import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
-import org.tarantool.TarantoolClientOps;
-import ru.shadam.tarantool.core.convert.MappingTarantoolConverter;
+import ru.shadam.tarantool.core.convert.TarantoolConverter;
 import ru.shadam.tarantool.core.convert.TarantoolData;
-import ru.shadam.tarantool.core.convert.Tuple;
 import ru.shadam.tarantool.core.mapping.TarantoolMappingContext;
 import ru.shadam.tarantool.core.mapping.TarantoolPersistentEntity;
 import ru.shadam.tarantool.core.mapping.TarantoolPersistentProperty;
 import ru.shadam.tarantool.repository.query.TarantoolQuery;
 
 import java.io.Serializable;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.util.Optional;
 
 /**
  * @author sala
  */
 public class TarantoolKeyValueTemplate implements KeyValueOperations {
-    private TarantoolClientOps<Integer, List<?>, Object, List<?>> ops;
-    private MappingTarantoolConverter converter;
+    // for exception translation
+    private final TarantoolOps tarantoolOps;
     private final TarantoolMappingContext mappingContext;
-    private final IdentifierGenerator identifierGenerator;
+    private final TarantoolConverter converter;
+//    private final QueryEngine<? extends KeyValueAdapter, ?, ?> engine;
 
-
-    public TarantoolKeyValueTemplate(TarantoolClientOps<Integer, List<?>, Object, List<?>> ops, MappingTarantoolConverter converter, TarantoolMappingContext mappingContext) {
-        this.ops = ops;
-        this.converter = converter;
+    public TarantoolKeyValueTemplate(TarantoolOps tarantoolOps, TarantoolMappingContext mappingContext, TarantoolConverter converter) {
+        this.tarantoolOps = tarantoolOps;
         this.mappingContext = mappingContext;
-        this.identifierGenerator = DefaultIdentifierGenerator.INSTANCE;
-
+        this.converter = converter;
     }
 
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#insert(java.lang.Object)
-     */
     @Override
     public <T> T insert(T objectToInsert) {
+        Assert.notNull(objectToInsert, "Object to be inserted must not be null!");
 
-        PersistentEntity<?, ?> entity = this.mappingContext.getPersistentEntity(ClassUtils.getUserClass(objectToInsert));
+        Class<?> objectClass = objectToInsert.getClass();
+        String keyspace = resolveKeySpace(objectClass);
 
-        GeneratingIdAccessor generatingIdAccessor = new GeneratingIdAccessor(entity.getPropertyAccessor(objectToInsert),
-                entity.getIdProperty(), identifierGenerator);
-        Object id = generatingIdAccessor.getOrGenerateIdentifier();
+        TarantoolData tdo = maybeConvert(objectToInsert);
 
-        insert((Serializable) id, objectToInsert);
-        return objectToInsert;
+        converter.removePrimaryKey(objectToInsert, tdo);
+
+        TarantoolData inserted = tarantoolOps.autoIncrement(keyspace, tdo);
+
+        T converted = (T) converter.read(objectClass, inserted);
+
+        TarantoolPersistentProperty idProperty = converter.getMappingContext().getPersistentEntity(objectClass)
+                .getIdProperty();
+
+        Object id = converter.getMappingContext().getPersistentEntity(objectClass).getPropertyAccessor(converted)
+                .getProperty(idProperty);
+
+        tdo.setId(id);
+        
+        if (!(objectToInsert instanceof TarantoolData)) {
+            converter.getMappingContext().getPersistentEntity(objectClass).getPropertyAccessor(objectToInsert)
+                    .setProperty(idProperty, id);
+        }
+
+        return converted;
     }
 
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#insert(java.io.Serializable, java.lang.Object)
-     */
     @Override
-    public void insert(final Serializable id, final Object objectToInsert) {
-
+    public void insert(Serializable id, Object objectToInsert) {
         Assert.notNull(id, "Id for object to be inserted must not be null!");
         Assert.notNull(objectToInsert, "Object to be inserted must not be null!");
 
-        final int spaceId = resolveSpaceId(objectToInsert.getClass());
+        Class<?> objectClass = objectToInsert.getClass();
+        String keyspace = resolveKeySpace(objectClass);
 
-        final TarantoolData rdo = objectToInsert instanceof TarantoolData ? (TarantoolData) objectToInsert : new TarantoolData();
-        if (!(objectToInsert instanceof TarantoolData)) {
-            converter.write(objectToInsert, rdo);
+        TarantoolData tdo = maybeConvert(objectToInsert);
+
+        if (tdo.getId() == null) {
+            tdo.setId(id);
+
+            if (!(objectToInsert instanceof TarantoolData)) {
+                TarantoolPersistentProperty idProperty = converter.getMappingContext().getPersistentEntity(objectClass)
+                        .getIdProperty();
+                converter.getMappingContext().getPersistentEntity(objectClass).getPropertyAccessor(objectToInsert)
+                        .setProperty(idProperty, id);
+            }
         }
 
-        ops.insert(spaceId, rdo.getTuple().getRaw());
+        tarantoolOps.replace(keyspace, tdo);
     }
 
     /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#update(java.lang.Object)
-     */
-    @SuppressWarnings("rawtypes")
+         * (non-Javadoc)
+         * @see org.springframework.data.keyvalue.core.KeyValueOperations#findAllOf(java.lang.Class)
+         */
+
+    @Override
+    public <T> Iterable<T> findAll(final Class<T> type) {
+
+        Assert.notNull(type, "Type to fetch must not be null!");
+
+        String keyspace = resolveKeySpace(type);
+
+        List<TarantoolData> data = tarantoolOps.getAllOf(keyspace);
+
+        List<T> result = new ArrayList<>();
+        for (TarantoolData value : data) {
+            result.add(converter.read(type, value));
+        }
+
+        return result;
+    }
+    @Override
+    public <T> Iterable<T> findAll(Sort sort, Class<T> type) {
+        return find(new KeyValueQuery(sort), type);
+    }
+
+    @Override
+    public <T> T findById(Serializable id, Class<T> type) {
+
+        Assert.notNull(id, "Id for object to be inserted must not be null!");
+        Assert.notNull(type, "Type to fetch must not be null!");
+
+        String keyspace = resolveKeySpace(type);
+
+        TarantoolData data = tarantoolOps.get(keyspace, id);
+
+        return converter.read(type, data);
+    }
+
+    @Override
+    public <T> T execute(KeyValueCallback<T> action) {
+        // TODO: use execute as it's required by api
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T> Iterable<T> find(KeyValueQuery<?> query, Class<T> type) {
+        Assert.notNull(query);
+        Assert.notNull(type);
+
+        String keyspace = resolveKeySpace(type);
+
+        TarantoolQuery tarantoolQuery = (TarantoolQuery) query.getCritieria();
+
+        TarantoolPersistentEntity<?> entity = this.mappingContext.getPersistentEntity(type);
+        TarantoolPersistentProperty persistentProperty = entity.getPersistentProperty(tarantoolQuery.getKey());
+
+        // todo: or switch to spel?
+        String spaceIndexName = persistentProperty.getSpaceIndexName()
+                .orElseThrow(() -> new IllegalArgumentException("Cannot query for property without index"));
+
+        int offset = query.getOffset() == -1 ? 0 : query.getOffset();
+        int rows = query.getRows() == -1 ? Integer.MAX_VALUE : query.getRows();
+
+        List<TarantoolData> tuples = tarantoolOps.getByIndex(keyspace, spaceIndexName, (Serializable) tarantoolQuery.getValue(), offset, rows);
+
+        List<T> result = new ArrayList<>();
+        for (final TarantoolData tuple : tuples) {
+            result.add(converter.read(type, tuple));
+        }
+        return result;
+    }
+
+    @Override
+    public <T> Iterable<T> findInRange(int offset, int rows, Class<T> type) {
+        Assert.notNull(type, "Type to fetch must not be null!");
+
+        String keyspace = resolveKeySpace(type);
+
+        List<TarantoolData> data = tarantoolOps.getAllOf(keyspace, offset, rows);
+
+        List<T> result = new ArrayList<>();
+        for (TarantoolData value : data) {
+            result.add(converter.read(type, value));
+        }
+
+        return result;
+    }
+
+    @Override
+    public <T> Iterable<T> findInRange(int offset, int rows, Sort sort, Class<T> type) {
+        if (sort == null) {
+            return findInRange(offset, rows, type);
+        }
+
+        List<Sort.Order> orders = new ArrayList<>();
+        sort.iterator().forEachRemaining(orders::add);
+
+        if (orders.isEmpty()) {
+            return findInRange(offset, rows, type);
+        }
+
+        if (orders.size() > 1) {
+            throw new IllegalArgumentException("cannot order by more than one field");
+        }
+
+        Sort.Order onlyOrder = orders.get(0);
+        String onlyOrderKey = onlyOrder.getProperty();
+
+        TarantoolPersistentEntity<?> persistentEntity = this.mappingContext.getPersistentEntity(type);
+        TarantoolPersistentProperty persistentProperty = persistentEntity.getPersistentProperty(onlyOrderKey);
+
+        String space = resolveKeySpace(type);
+        ru.shadam.tarantool.core.Iterator iterator =
+                onlyOrder.isAscending()
+                        ? ru.shadam.tarantool.core.Iterator.GE
+                        : ru.shadam.tarantool.core.Iterator.LE;
+
+        List<TarantoolData> data;
+        if (persistentProperty.isIdProperty()) {
+            data = tarantoolOps.getAllOf(space, iterator, offset, rows);
+        } else {
+            Optional<String> indexName = persistentProperty.getSpaceIndexName();
+            if(!indexName.isPresent()) {
+                throw new IllegalArgumentException("cannot sort without index");
+            }
+
+            data = tarantoolOps.getByIndex(space, indexName.get(), iterator, offset, rows);
+        }
+
+        List<T> result = new ArrayList<>();
+
+        for (TarantoolData value : data) {
+            result.add(converter.read(type, value));
+        }
+
+        return result;
+    }
+
     @Override
     public void update(Object objectToUpdate) {
-
         PersistentEntity<?, ? extends PersistentProperty> entity = this.mappingContext.getPersistentEntity(ClassUtils
                 .getUserClass(objectToUpdate));
 
@@ -100,117 +245,27 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
         update((Serializable) entity.getIdentifierAccessor(objectToUpdate).getIdentifier(), objectToUpdate);
     }
 
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#update(java.io.Serializable, java.lang.Object)
-     */
     @Override
-    public void update(final Serializable id, final Object objectToUpdate) {
-
+    public void update(Serializable id, Object objectToUpdate) {
         Assert.notNull(id, "Id for object to be inserted must not be null!");
         Assert.notNull(objectToUpdate, "Object to be updated must not be null!");
 
-        final int spaceId = resolveSpaceId(objectToUpdate.getClass());
+        final String keyspace = resolveKeySpace(objectToUpdate.getClass());
 
-        final TarantoolData rdo = objectToUpdate instanceof TarantoolData ? (TarantoolData) objectToUpdate : new TarantoolData();
-        if (!(objectToUpdate instanceof TarantoolData)) {
-            converter.write(objectToUpdate, rdo);
-        }
+        TarantoolData tarantoolData = maybeConvert(objectToUpdate);
 
-        // todo : check if id type is supported.
-        // convert to any of supported type
-        if (rdo.getId() == null) {
-
-            rdo.setId(converter.getConversionService().convert(id, Long.class));
-
-            if (!(objectToUpdate instanceof TarantoolData)) {
-                TarantoolPersistentProperty idProperty = converter.getMappingContext().getPersistentEntity(objectToUpdate.getClass())
-                        .getIdProperty();
-                converter.getMappingContext().getPersistentEntity(objectToUpdate.getClass()).getPropertyAccessor(objectToUpdate)
-                        .setProperty(idProperty, id);
-            }
-        }
-
-        ops.replace(spaceId, rdo.getTuple().getRaw());
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#findAllOf(java.lang.Class)
-     */
-    @Override
-    public <T> Iterable<T> findAll(final Class<T> type) {
-        Assert.notNull(type, "Type to fetch must not be null!");
-
-        final int spaceId = resolveSpaceId(type);
-        final int spaceIndexId = resolveEntity(type).getIdProperty().getSpaceIndexId()
-                .orElseThrow(() -> new IllegalArgumentException("Cannot query for property without indexId"));
-
-        final List listOfTuples = ops.select(spaceId, spaceIndexId, Collections.emptyList(), 0, Integer.MAX_VALUE, Iterator.ALL.getValue());
-        final List<List<Object>> tuples = (List<List<Object>>) listOfTuples;
-
-        return tuples.stream().map(
-                tuple -> {
-                    TarantoolData data = new TarantoolData(new Tuple(tuple));
-                    data.setSpaceId(spaceId);
-                    // data.setId(id);
-
-                    return converter.read(type, data);
-                }
-        ).collect(Collectors.toList());
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#findById(java.io.Serializable, java.lang.Class)
-     */
-    @Override
-    public <T> T findById(final Serializable id, final Class<T> type) {
-        Assert.notNull(id, "Id for object to be inserted must not be null!");
-        Assert.notNull(type, "Type to fetch must not be null!");
-
-        final int spaceId = resolveSpaceId(type);
-        final int spaceIndexId = resolveEntity(type).getIdProperty().getSpaceIndexId()
-                .orElseThrow(() -> new IllegalArgumentException("Cannot query for property without indexId"));
-
-        final List listOfTuple = ops.select(spaceId, spaceIndexId, Collections.singletonList(id), 0, 1, Iterator.EQ.getValue());
-
-        if(listOfTuple.isEmpty()) {
-            return null;
-        }
-
-        final List<Object> tuple = (List<Object>) listOfTuple.get(0);
-
-        TarantoolData data = new TarantoolData(new Tuple(tuple));
-        data.setSpaceId(spaceId);
-        data.setId(id);
-
-        return converter.read(type, data);
+        tarantoolOps.replace(keyspace, tarantoolData);
     }
 
     @Override
-    public <T> T execute(KeyValueCallback<T> action) {
-        throw new UnsupportedOperationException("");
+    public void delete(Class<?> type) {
+        Assert.notNull(type, "Type to delete must not be null!");
+
+        final String keyspace = resolveKeySpace(type);
+
+        tarantoolOps.deleteAll(keyspace);
     }
 
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#delete(java.lang.Class)
-     */
-    @Override
-    public void delete(final Class<?> type) {
-        final Iterable<?> result = findAll(type);
-
-        for (final Object value : result) {
-            delete(value);
-        }
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#delete(java.lang.Object)
-     */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
     @Override
     public <T> T delete(T objectToDelete) {
 
@@ -220,132 +275,62 @@ public class TarantoolKeyValueTemplate implements KeyValueOperations {
         return delete((Serializable) entity.getIdentifierAccessor(objectToDelete).getIdentifier(), type);
     }
 
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#delete(java.io.Serializable, java.lang.Class)
-     */
     @Override
-    public <T> T delete(final Serializable id, final Class<T> type) {
+    public <T> T delete(Serializable id, Class<T> type) {
+
         Assert.notNull(id, "Id for object to be deleted must not be null!");
         Assert.notNull(type, "Type to delete must not be null!");
 
-        final int spaceId = resolveSpaceId(type);
+        final String keyspace = resolveKeySpace(type);
 
-        final List listOfTuple = ops.delete(spaceId, Collections.singletonList(id));
-
-        final List<Object> tuple = (List<Object>) listOfTuple.get(0);
-
-        TarantoolData data = new TarantoolData(new Tuple(tuple));
-        data.setSpaceId(spaceId);
-        data.setId(id);
+        TarantoolData data = tarantoolOps.delete(keyspace, id);
 
         return converter.read(type, data);
     }
 
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#count(java.lang.Class)
-     */
     @Override
     public long count(Class<?> type) {
-        return StreamSupport.stream(findAll(type).spliterator(), false).count();
+        return tarantoolOps.count(resolveKeySpace(type));
     }
 
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#find(org.springframework.data.keyvalue.core.query.KeyValueQuery, java.lang.Class)
-     */
     @Override
-    public <T> Iterable<T> find(final KeyValueQuery<?> query, final Class<T> type) {
-        Assert.notNull(query);
-        Assert.notNull(type);
+    public long count(KeyValueQuery<?> query, Class<?> type) {
+        String keyspace = resolveKeySpace(type);
 
-        int spaceId = resolveSpaceId(type);
-        //
         TarantoolQuery tarantoolQuery = (TarantoolQuery) query.getCritieria();
 
         TarantoolPersistentEntity<?> entity = this.mappingContext.getPersistentEntity(type);
         TarantoolPersistentProperty persistentProperty = entity.getPersistentProperty(tarantoolQuery.getKey());
-        int spaceIndexId = persistentProperty.getSpaceIndexId()
+
+        // todo: or switch to spel?
+        String spaceIndexName = persistentProperty.getSpaceIndexName()
                 .orElseThrow(() -> new IllegalArgumentException("Cannot query for property without index"));
 
-        // TODO: add support for composite index query
-        int offset = query.getOffset() == -1 ? 0 : query.getOffset();
-        int rows = query.getRows() == -1 ? Integer.MAX_VALUE : query.getRows();
-
-        List listOfTuples = ops.select(spaceId, spaceIndexId, Collections.singletonList(tarantoolQuery.getValue()), offset, rows, Iterator.EQ.getValue());
-        List<List<Object>> tuples = (List<List<Object>>) listOfTuples;
-
-        return tuples.stream()
-                .map(tuple -> {
-                    TarantoolData data = new TarantoolData(new Tuple(tuple));
-                    data.setSpaceId(spaceId);
-                    // data.setId(id);
-
-                    return converter.read(type, data);
-                }).collect(Collectors.toList());
+        return tarantoolOps.countByIndex(keyspace, spaceIndexName, (Serializable) tarantoolQuery.getValue());
     }
-
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#findAllOf(org.springframework.data.domain.Sort, java.lang.Class)
-     */
-    @SuppressWarnings("rawtypes")
-    @Override
-    public <T> Iterable<T> findAll(Sort sort, Class<T> type) {
-        return find(new KeyValueQuery(sort), type);
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#findInRange(int, int, java.lang.Class)
-     */
-    @SuppressWarnings("rawtypes")
-    @Override
-    public <T> Iterable<T> findInRange(int offset, int rows, Class<T> type) {
-        return find(new KeyValueQuery().skip(offset).limit(rows), type);
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#findInRange(int, int, org.springframework.data.domain.Sort, java.lang.Class)
-     */
-    @SuppressWarnings("rawtypes")
-    @Override
-    public <T> Iterable<T> findInRange(int offset, int rows, Sort sort, Class<T> type) {
-        return find(new KeyValueQuery(sort).skip(offset).limit(rows), type);
-    }
-
-    /*
-     * (non-Javadoc)
-     * @see org.springframework.data.keyvalue.core.KeyValueOperations#count(org.springframework.data.keyvalue.core.query.KeyValueQuery, java.lang.Class)
-     */
-    @Override
-    public long count(final KeyValueQuery<?> query, final Class<?> type) {
-        return StreamSupport.stream(find(query, type).spliterator(), false).count();
-    }
-
 
     @Override
     public MappingContext<?, ?> getMappingContext() {
         return mappingContext;
     }
 
-    private int resolveSpaceId(Class<?> type) {
-        final Integer spaceId = this.mappingContext.getPersistentEntity(type).getSpaceId();
-
-        if(spaceId == null) {
-            throw new IllegalArgumentException("Cannot detect spaceId for type: " + type + ". Did you add @SpaceId annotation?");
-        }
-        return spaceId;
-    }
-
-    private TarantoolPersistentEntity<?> resolveEntity(Class<?> type) {
-        return this.mappingContext.getPersistentEntity(type);
-    }
-
     @Override
     public void destroy() throws Exception {
 
+    }
+
+    private TarantoolData maybeConvert(Object objectToInsert) {
+        TarantoolData tdo;
+        if (objectToInsert instanceof TarantoolData) {
+            tdo = (TarantoolData) objectToInsert;
+        } else {
+            tdo = new TarantoolData();
+            converter.write(objectToInsert, tdo);
+        }
+        return tdo;
+    }
+
+    private String resolveKeySpace(Class<?> type) {
+        return this.mappingContext.getPersistentEntity(type).getSpaceName();
     }
 }

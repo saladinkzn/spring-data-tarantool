@@ -4,7 +4,6 @@ package ru.shadam.tarantool.core.convert;
  * @author sala
  */
 public class TarantoolData {
-    private int spaceId;
     private Object id;
 
     private Tuple tuple;
@@ -15,16 +14,6 @@ public class TarantoolData {
 
     public TarantoolData(Tuple tuple) {
         this.tuple = tuple;
-    }
-
-    public int getSpaceId() {
-        return spaceId;
-    }
-
-    // TODO: remove spaceId as it's not required
-    @Deprecated
-    public void setSpaceId(int spaceId) {
-        this.spaceId = spaceId;
     }
 
     public Object getId() {
@@ -39,7 +28,6 @@ public class TarantoolData {
     @Override
     public String toString() {
         return "TarantoolData{" +
-                "spaceId=" + spaceId +
                 ", id=" + id +
                 ", tuple=" + tuple +
                 '}';

@@ -14,14 +14,6 @@ public abstract class Operation<TOperator extends Operator> {
         this.fieldNumber = fieldNumber;
     }
 
-    public TOperator getOperator() {
-        return operator;
-    }
-
-    public int getFieldNumber() {
-        return fieldNumber;
-    }
-
     public abstract List toTuple();
 
 }

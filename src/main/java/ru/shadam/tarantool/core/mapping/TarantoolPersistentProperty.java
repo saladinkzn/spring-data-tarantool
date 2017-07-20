@@ -2,6 +2,7 @@ package ru.shadam.tarantool.core.mapping;
 
 import org.springframework.data.mapping.PersistentProperty;
 
+import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
@@ -10,5 +11,5 @@ import java.util.OptionalInt;
 public interface TarantoolPersistentProperty extends PersistentProperty<TarantoolPersistentProperty> {
     OptionalInt getTupleIndex();
 
-    OptionalInt getSpaceIndexId();
+    Optional<String> getSpaceIndexName();
 }

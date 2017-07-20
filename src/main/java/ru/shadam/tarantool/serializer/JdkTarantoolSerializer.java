@@ -5,6 +5,7 @@ import org.springframework.core.serializer.support.DeserializingConverter;
 import org.springframework.core.serializer.support.SerializingConverter;
 import org.springframework.util.Assert;
 
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
@@ -38,7 +39,8 @@ public class JdkTarantoolSerializer implements TarantoolSerializer<Object> {
         }
 
         try {
-            return Collections.singletonList(serializer.convert(value));
+            String base64string = Base64.getEncoder().encodeToString(serializer.convert(value));
+            return Collections.singletonList(base64string);
         } catch (Exception ex) {
             throw new RuntimeException("Cannot serialize", ex);
         }
@@ -54,9 +56,10 @@ public class JdkTarantoolSerializer implements TarantoolSerializer<Object> {
             return null;
         }
 
-        byte[] onlyElement = (byte[]) value.get(0);
+        String onlyElement = (String) value.get(0);
+        byte[] bytes = Base64.getDecoder().decode(onlyElement);
         try {
-            return deserializer.convert(onlyElement);
+            return deserializer.convert(bytes);
         } catch (Exception ex) {
             throw new RuntimeException("Cannot deserialize", ex);
         }

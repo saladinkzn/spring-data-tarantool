@@ -3,6 +3,7 @@ package ru.shadam.tarantool.core;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.util.Assert;
 import org.tarantool.TarantoolClientOps;
@@ -11,10 +12,7 @@ import ru.shadam.tarantool.serializer.JdkTarantoolSerializer;
 import ru.shadam.tarantool.serializer.PlainTarantoolSerializer;
 import ru.shadam.tarantool.serializer.TarantoolSerializer;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -50,34 +48,76 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public List<V> select(int spaceId, int indexId, Pageable pageable) {
-        final List<List<?>> listOfTuples = (List<List<?>>) syncOps.select(spaceId, indexId, Collections.emptyList(), pageable.getOffset(), pageable.getPageSize(), Iterator.ALL.getValue());
+    public List<V> select(String space, Pageable pageable) {
+        Map<String, Object> options = TarantoolPageUtils.createOptions(pageable, Iterator.ALL);
+        List<List<?>> listOfTuples = (List<List<?>>) syncOps.call(
+                createSpaceFunction(space, TarantoolSpaceOperation.SELECT), Collections.emptyList(), options
+        );
+
+        // Tarantool returns list with single empty tuple if nothing was found
+        if (listOfTuples.size() == 1 && listOfTuples.get(0).isEmpty()) {
+            return Collections.emptyList();
+        }
+
         return listOfTuples.stream()
-                .map(it -> (V) valueSerializer.deserialize(extractValue(it)))
-                .collect(Collectors.toList());
+            .map(it -> (V) valueSerializer.deserialize(extractValue(it)))
+            .collect(Collectors.toList());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public List<V> select(int spaceId, int indexId, K key, Pageable pageable, Iterator iterator) {
-        List<?> keyTuple = keySerializer.serialize(key);
+    public List<V> select(String space, String index, Pageable pageable) {
+        Map<String, Object> options = TarantoolPageUtils.createOptions(pageable, Iterator.ALL);
+        final List<List<?>> listOfTuples = (List<List<?>>) syncOps.call(
+                createSpaceIndexFunction(space, index, TarantoolIndexOperation.SELECT),
+                Arrays.asList(Collections.emptyList(), options)
+        );
+        return listOfTuples.stream()
+                .map(it -> (V) valueSerializer.deserialize(extractValue(it)))
+                .collect(Collectors.toList());
+    }
 
-        final List<List<?>> tuples = (List<List<?>>) syncOps.select(spaceId, indexId, keyTuple, pageable.getOffset(), pageable.getPageSize(), iterator.getValue());
+    @Override
+    public List<V> select(String space, K key, Pageable pageable, Iterator iterator) {
+        List<?> keyTuple = keySerializer.serialize(key);
+        Map<String, Object> options = TarantoolPageUtils.createOptions(pageable, iterator);
+
+        List<List<?>> tuples = (List<List<?>>) syncOps.call(
+                createSpaceFunction(space, TarantoolSpaceOperation.SELECT), keyTuple, options
+        );
 
         return tuples.stream()
                 .map(it -> (V) valueSerializer.deserialize(extractValue(it)))
                 .collect(Collectors.toList());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public List<K> selectKeys(int spaceId, int indexId) {
-        final List<List<?>> listOfTuples = (List<List<?>>) syncOps.select(spaceId, indexId, Collections.emptyList(), 0, Integer.MAX_VALUE, Iterator.ALL.getValue());
+    public List<V> select(String space, String index, K key, Pageable pageable, Iterator iterator) {
+        List<?> keyTuple = keySerializer.serialize(key);
+        Map<String, Object> options = TarantoolPageUtils.createOptions(pageable, iterator);
+
+        final List<List<?>> tuples = (List<List<?>>) syncOps.call(
+                createSpaceIndexFunction(space, index, TarantoolIndexOperation.SELECT),
+                Arrays.asList(keyTuple, options)
+        );
+
+        return tuples.stream()
+                .map(it -> (V) valueSerializer.deserialize(extractValue(it)))
+                .collect(Collectors.toList());
+    }
+
+//    @Override
+    public List<K> selectKeys(String spaceId, String indexId) {
+        Map<String, Object> options = TarantoolPageUtils.createOptions(new PageRequest(0, Integer.MAX_VALUE), Iterator.ALL);
+        final List<List<?>> listOfTuples = (List<List<?>>) syncOps.call(
+                createSpaceIndexFunction(spaceId, indexId, TarantoolIndexOperation.SELECT),
+                Arrays.asList(Collections.emptyList(), options));
         return listOfTuples.stream()
                 .map(it -> (K) keySerializer.deserialize(extractKey(it)))
                 .collect(Collectors.toList());
@@ -88,10 +128,10 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
      * {@inheritDoc}
      */
     @Override
-    public V insert(int spaceId, K key, V value) {
+    public V insert(String spaceId, K key, V value) {
         List tuple = convertToTuple(keySerializer.serialize(key), valueSerializer.serialize(value));
 
-        final List<List<?>> tuples = ((List<List<?>>) syncOps.insert(spaceId, tuple));
+        final List<List<?>> tuples = ((List<List<?>>) syncOps.call(createSpaceFunction(spaceId, TarantoolSpaceOperation.INSERT), tuple));
 
         if (tuples.isEmpty()) {
             return null;
@@ -107,13 +147,29 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
      * {@inheritDoc}
      */
     @Override
-    public V replace(int spaceId, K key, V value) {
-        final List serializedValue = valueSerializer.serialize(value);
-        List valueTuple = serializedValue;
+    public V replace(String spaceId, K key, V value) {
+        List valueTuple = valueSerializer.serialize(value);
 
-        final List result = syncOps.replace(spaceId, valueTuple);
+        final List result = syncOps.call(createSpaceFunction(spaceId, TarantoolSpaceOperation.REPLACE), valueTuple);
 
         return ((V) valueSerializer.deserialize(extractValue(result)));
+    }
+
+    @Override
+    public V update(String space, K key, List<Operation> operations) {
+        List serializedKey = keySerializer.serialize(key);
+
+        List[] listOperations = operations.stream()
+                .map(Operation::toTuple)
+                .toArray(List[]::new);
+        List<List<?>> listOfTuples = (List<List<?>>) syncOps.call(
+                createSpaceFunction(space, TarantoolSpaceOperation.UPDATE),
+                serializedKey, 
+                listOperations
+        );
+        final List<?> tuple = listOfTuples.get(0);
+
+        return (V) valueSerializer.deserialize(extractValue(tuple));
     }
 
     /**
@@ -121,14 +177,16 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
      */
     @SuppressWarnings("unchecked")
     @Override
-    public V update(int spaceId, int indexId, K key, List<Operation> operation) {
+    public V update(String spaceId, String indexId, K key, List<Operation> operation) {
         final Object serializedKey = keySerializer.serialize(key);
         List keyTuple = (List) serializedKey;
 
         final List<?>[] listOfOperations = operation.stream()
                 .map(Operation::toTuple)
                 .toArray(List[]::new);
-        final List<List<?>> listOfTuples = (List<List<?>>) syncOps.update(spaceId, keyTuple, (Object[]) listOfOperations);
+        final List<List<?>> listOfTuples = (List<List<?>>) syncOps.call(
+                createSpaceIndexFunction(spaceId, indexId, TarantoolIndexOperation.UPDATE),
+                Arrays.asList(keyTuple, listOfOperations));
         final List<?> tuple = listOfTuples.get(0);
 
         return ((V) valueSerializer.deserialize(extractValue(tuple)));
@@ -138,28 +196,39 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
      * {@inheritDoc}
      */
     @Override
-    public void upsert(int spaceId, K key, V value, List<Operation> operations) {
+    public void upsert(String spaceId, K key, V value, List<Operation> operations) {
         final Object serializedKey = keySerializer.serialize(key);
         List keyTuple = (List) serializedKey;
 
         final Object serializedValue = valueSerializer.serialize(value);
         List valueTuple = (List) serializedValue;
 
+        List tuple = convertToTuple(keyTuple, valueTuple);
+
         final List[] listOfOperations = operations.stream()
                 .map(Operation::toTuple)
                 .toArray(List[]::new);
-        syncOps.upsert(spaceId, keyTuple, valueTuple, (Object[]) listOfOperations);
+        syncOps.call(
+                createSpaceFunction(spaceId, TarantoolSpaceOperation.UPSERT),
+                tuple, (Object[]) listOfOperations
+        );
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public V delete(int spaceId, K key) {
+    public V delete(String spaceId, K key) {
         final List serializedKey = keySerializer.serialize(key);
 
-        final List tuple = syncOps.delete(spaceId, serializedKey);
+        final List tuple = syncOps.call(
+                createSpaceFunction(spaceId,  TarantoolSpaceOperation.DELETE), serializedKey);
         return (V) valueSerializer.deserialize(extractValue(tuple));
+    }
+
+    @Override
+    public void deleteAll(String space) {
+        syncOps.eval(createSpaceFunctionCall(space, TarantoolSpaceOperation.TRUNCATE));
     }
 
     private List convertToTuple(List key, List value) {
@@ -203,4 +272,17 @@ public class TarantoolTemplate<K, V> implements TarantoolOperations<K,V>, Initia
     public void setKeyClass(Class<K> keyClass) {
         this.keyClass = keyClass;
     }
+
+    private static String createSpaceFunction(String space, TarantoolSpaceOperation operation) {
+        return "box.space." + space + ":" + operation.getOperationName();
+    }
+
+    private static String createSpaceFunctionCall(String space, TarantoolSpaceOperation operation) {
+        return createSpaceFunction(space, operation) + "()";
+    }
+
+    private static String createSpaceIndexFunction(String space, String index, TarantoolIndexOperation operation) {
+        return "box.space." + space + ".index." + index + ":" + operation.getOperationName();
+    }
+
 }

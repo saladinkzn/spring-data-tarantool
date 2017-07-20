@@ -1,13 +1,13 @@
 package ru.shadam.tarantool.repository.entity;
 
 import org.springframework.data.annotation.Id;
-import ru.shadam.tarantool.annotation.SpaceId;
+import org.springframework.data.keyvalue.annotation.KeySpace;
 import ru.shadam.tarantool.annotation.Tuple;
 
 /**
  * @author sala
  */
-@SpaceId(513)
+@KeySpace("log_entry")
 public class LogEntry {
     @Id
     @Tuple(index = 0)

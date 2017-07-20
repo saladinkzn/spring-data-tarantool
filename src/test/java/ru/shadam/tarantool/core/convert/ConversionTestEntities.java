@@ -1,7 +1,6 @@
 package ru.shadam.tarantool.core.convert;
 
 import org.springframework.data.annotation.Id;
-import ru.shadam.tarantool.annotation.SpaceId;
 import ru.shadam.tarantool.annotation.Tuple;
 
 import java.util.Date;
@@ -38,7 +37,6 @@ public class ConversionTestEntities {
     /**
      * @author sala
      */
-    @SpaceId(513)
     public static class Person {
         @Id
         @Tuple(index = ID)
