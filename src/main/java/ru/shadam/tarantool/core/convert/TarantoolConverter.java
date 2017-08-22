@@ -9,4 +9,6 @@ import ru.shadam.tarantool.core.mapping.TarantoolPersistentProperty;
  */
 public interface TarantoolConverter
         extends EntityConverter<TarantoolPersistentEntity<?>, TarantoolPersistentProperty, Object, TarantoolData> {
+
+    void removePrimaryKey(Object source, TarantoolData sink);
 }

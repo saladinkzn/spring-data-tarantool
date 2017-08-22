@@ -13,6 +13,7 @@ import ru.shadam.tarantool.test.util.Tuples;
 import java.security.SecureRandom;
 import java.util.*;
 
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertEquals;
@@ -45,6 +46,7 @@ public class MappingTarantoolConverterUnitTests {
         rand.id = 1L;
 
         Assert.assertThat(write(rand).getId(), is(1L));
+        Assert.assertThat(write(rand).getTuple().getRaw(), hasSize(9));
     }
 
     @Test

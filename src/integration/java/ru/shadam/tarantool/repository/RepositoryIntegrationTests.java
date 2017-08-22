@@ -1,26 +1,31 @@
 package ru.shadam.tarantool.repository;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.palantir.docker.compose.DockerComposeRule;
+import com.palantir.docker.compose.connection.DockerPort;
 import com.palantir.docker.compose.connection.waiting.HealthChecks;
+import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.data.repository.CrudRepository;
 import org.tarantool.*;
 import ru.shadam.tarantool.core.SimpleSocketChannelProvider;
+import ru.shadam.tarantool.repository.configuration.EnableTarantoolRepositories;
+import ru.shadam.tarantool.repository.entity.Address;
 import ru.shadam.tarantool.repository.entity.LogEntry;
 import ru.shadam.tarantool.repository.entity.User;
-import ru.shadam.tarantool.repository.configuration.EnableTarantoolRepositories;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -36,16 +41,32 @@ public class RepositoryIntegrationTests {
 
     private UserRepository userRepository;
     private LogEntryRepository logEntryRepository;
+    private AddressRepository addressRepository;
 
     @Before
-    public void setUp() {
-        ApplicationContext applicationContext = new AnnotationConfigApplicationContext(TarantoolConfiguration.class);
+    public void setUp() throws IOException {
+        AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext();
+        applicationContext.register(TarantoolConfiguration.class);
+        DockerPort dockerPort = docker.containers()
+                .container("tarantool")
+                .port(3301);
+        ImmutableMap<String, Object> env = ImmutableMap.of("tarantoolPort", dockerPort.getExternalPort());
+        applicationContext.getEnvironment().getPropertySources()
+                .addFirst(new MapPropertySource("rule", env));
+        applicationContext.refresh();
+
+        TarantoolClientOps bean = (TarantoolClientOps) applicationContext.getBean("tarantoolSyncOps");
+        String eval = IOUtils.toString(RepositoryIntegrationTests.class.getResource("/init.lua"));
+        bean.eval(eval);
         //
         userRepository = applicationContext.getBean(UserRepository.class);
         userRepository.deleteAll();
 
         logEntryRepository = applicationContext.getBean(LogEntryRepository.class);
         logEntryRepository.deleteAll();
+
+        addressRepository = applicationContext.getBean(AddressRepository.class);
+        addressRepository.deleteAll();
     }
 
     @Test
@@ -57,6 +78,7 @@ public class RepositoryIntegrationTests {
     public void testInsertAndFetch() {
         final User user = new User();
         user.id = 2L;
+        user.name = "user";
 
         final User saved = userRepository.save(user);
 
@@ -67,6 +89,7 @@ public class RepositoryIntegrationTests {
     public void testInsertAndDelete() {
         final User user = new User();
         user.id = 3L;
+        user.name = "user2";
 
         final User saved = userRepository.save(user);
 
@@ -151,6 +174,27 @@ public class RepositoryIntegrationTests {
         Assert.assertEquals(0, logEntryRepository.count());
     }
 
+    @Test
+    public void testAutoIdGeneration() {
+        User user = new User();
+        user.name = "John Doe";
+
+        User saved = userRepository.save(user);
+        Assert.assertNotEquals(0L, saved.id);
+    }
+
+    @Test
+    public void testNullFields() {
+        Address address = new Address(null, "street", null);
+
+        Address saved = addressRepository.save(address);
+
+        Address retrieved = addressRepository.findOne(saved.getId());
+        Assert.assertNull(retrieved.getCity());
+        Assert.assertNull(retrieved.getNumber());
+        Assert.assertEquals("street", retrieved.getStreet());
+    }
+
 
     @EnableTarantoolRepositories(basePackages = {"ru.shadam.tarantool"}, considerNestedRepositories = true)
     @Configuration
@@ -166,7 +210,8 @@ public class RepositoryIntegrationTests {
             SocketChannelProvider socketChannelProvider
         ) {
             final TarantoolClientConfig config = new TarantoolClientConfig();
-            config.username = "guest";
+            config.username = "test";
+            config.password = "test";
             config.initTimeoutMillis = 5000;
             config.writeTimeoutMillis = 5000;
             return new TarantoolClientImpl(socketChannelProvider, config);
@@ -174,10 +219,11 @@ public class RepositoryIntegrationTests {
 
         @Bean
         public SocketChannelProvider socketChannelProvider(
-            @Value("${DOCKER_HOST_IP:localhost}") String DOCKER_HOST_IP
+            @Value("${DOCKER_HOST_IP:localhost}") String DOCKER_HOST_IP,
+            @Value("${tarantoolPort}") int tarantoolPort
         ) {
             System.out.println("DOCKER_HOST_IP: " + DOCKER_HOST_IP);
-            return new SimpleSocketChannelProvider(DOCKER_HOST_IP, 3301);
+            return new SimpleSocketChannelProvider(DOCKER_HOST_IP, tarantoolPort);
         }
 
         @Bean
@@ -193,6 +239,10 @@ public class RepositoryIntegrationTests {
     }
 
     private interface LogEntryRepository extends CrudRepository<LogEntry, String> {
+        
+    }
+
+    private interface AddressRepository extends CrudRepository<Address, Long> {
         
     }
 

@@ -45,7 +45,7 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
 
     @Override
     public TarantoolMappingContext getMappingContext() {
-        return null;
+        return mappingContext;
     }
 
     @Override
@@ -165,22 +165,20 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
     public void write(Object source, final TarantoolData sink) {
         final TarantoolPersistentEntity entity = mappingContext.getPersistentEntity(source.getClass());
 
-        sink.setSpaceId(entity.getSpaceId());
-
-        writeInternal(entity.getSpaceId(), Path.empty(), source, entity.getTypeInformation(), sink);
+        writeInternal(Path.empty(), source, entity.getTypeInformation(), sink);
         sink.setId(getConversionService().convert(entity.getIdentifierAccessor(source).getIdentifier(), entity.getIdProperty().getType()));
     }
 
     /**
-     * @param spaceId
      * @param path
      * @param value
      * @param typeHint
      * @param sink
      */
-    private void writeInternal(final int spaceId, final Path path, final Object value, TypeInformation<?> typeHint,
+    private void writeInternal(final Path path, final Object value, TypeInformation<?> typeHint,
                                final TarantoolData sink) {
         if (value == null) {
+            sink.getTuple().set(path, null);
             return;
         }
 
@@ -215,11 +213,11 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
 
                     if (property == null || Iterable.class.isAssignableFrom(property.getClass())) {
 
-                        writeCollection(spaceId, propertyPath, (Iterable<?>) property,
+                        writeCollection(propertyPath, (Iterable<?>) property,
                                 persistentProperty.getTypeInformation().getComponentType(), sink);
                     } else if (property.getClass().isArray()) {
 
-                        writeCollection(spaceId, propertyPath, CollectionUtils.arrayToList(property),
+                        writeCollection(propertyPath, CollectionUtils.arrayToList(property),
                                 persistentProperty.getTypeInformation().getComponentType(), sink);
                     } else {
 
@@ -227,7 +225,7 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
                     }
 
                 } else if (persistentProperty.isEntity()) {
-                    writeInternal(spaceId, propertyPath, accessor.getProperty(persistentProperty),
+                    writeInternal(propertyPath, accessor.getProperty(persistentProperty),
                             persistentProperty.getTypeInformation().getActualType(), sink);
                 } else {
                     Object propertyValue = accessor.getProperty(persistentProperty);
@@ -238,16 +236,16 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
     }
 
     /**
-     * @param spaceId
      * @param path
      * @param values
      * @param typeHint
      * @param sink
      */
-    private void writeCollection(int spaceId, Path path, Iterable<?> values, TypeInformation<?> typeHint,
+    private void writeCollection(Path path, Iterable<?> values, TypeInformation<?> typeHint,
                                  TarantoolData sink) {
 
         if (values == null) {
+            sink.getTuple().set(path, null);
             return;
         }
 
@@ -264,7 +262,7 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
             if (isTarantoolNativeType(value.getClass()) || customConversions.hasCustomWriteTarget(value.getClass())) {
                 writeToBucket(currentPath, value, sink, typeHint.getType());
             } else {
-                writeInternal(spaceId, currentPath, value, typeHint, sink);
+                writeInternal(currentPath, value, typeHint, sink);
             }
             i++;
         }
@@ -273,6 +271,7 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
     private void writeToBucket(Path path, Object value, TarantoolData sink, Class<?> propertyType) {
 
         if (value == null) {
+            sink.getTuple().set(path, null);
             return;
         }
 
@@ -389,6 +388,25 @@ public class MappingTarantoolConverter implements TarantoolConverter, Initializi
 
     private void initializeConverters() {
         customConversions.registerConvertersIn(conversionService);
+    }
+
+    @Override
+    public void removePrimaryKey(Object source, TarantoolData sink) {
+        final TarantoolPersistentEntity entity = mappingContext.getPersistentEntity(source.getClass());
+
+        List<Object> raw = sink.getTuple().getRaw();
+        entity.doWithProperties(new PropertyHandler<TarantoolPersistentProperty>() {
+            @Override
+            public void doWithPersistentProperty(TarantoolPersistentProperty persistentProperty) {
+                if (!persistentProperty.isIdProperty()) {
+                    return;
+                }
+
+                OptionalInt maybeTupleIndex = persistentProperty.getTupleIndex();
+
+                maybeTupleIndex.ifPresent(raw::remove);
+            }
+        });
     }
 
     private static class TarantoolTypeAliasAccessor implements TypeAliasAccessor<TarantoolData> {

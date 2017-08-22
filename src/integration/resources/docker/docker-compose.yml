@@ -4,4 +4,7 @@ services:
     build: tarantool/
     image: ru.shadam.tarantool/spring-data-tarantool-tests:0.2.0
     ports:
-      - 3301:3301
+      - 3301
+    environment:
+      - TARANTOOL_USER_NAME=test
+      - TARANTOOL_USER_PASSWORD=test

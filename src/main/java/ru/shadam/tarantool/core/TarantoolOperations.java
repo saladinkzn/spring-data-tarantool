@@ -14,35 +14,44 @@ import java.util.List;
  * @since 0.2.0
  */
 public interface TarantoolOperations<K, V> {
-
     /**
-     * Select all entities from space {@code spaceId} by index {@code indexId}
-     * @param spaceId id of space to select tuples from
-     * @param indexId id of index to use
+     * Select all entities from space {@code space} by primary index
+     * @param space name of space to select tuples from
      * @return List of entities
      */
-    default List<V> select(int spaceId, int indexId) {
-        return select(spaceId, indexId, new PageRequest(0, Integer.MAX_VALUE));
+    default List<V> select(String space) {
+        return select(space, new PageRequest(0, Integer.MAX_VALUE));
     }
 
     /**
+     * Select all entities from space {@code spaceId} by index {@code indexId}
+     * @param space name of space to select tuples from
+     * @param index id of index to use
+     * @return List of entities
+     */
+    default List<V> select(String space, String index) {
+        return select(space, index, new PageRequest(0, Integer.MAX_VALUE));
+    }
+
+    /**
+     * Select all entities from space {@code space} by primary index paginated by {@code pageable}
+     * @param space name of space to select entities from
+     * @param pageable PageRequest to limit/offset result
+     * @return
+     */
+    List<V> select(String space, Pageable pageable);
+
+    /**
      * Select all entities from space {@code spaceId} by index {@code indexId} paginated by {@code pageable}
-     * @param spaceId id of space to select entities from
-     * @param indexId id of index to use
+     * @param space name of space to select entities from
+     * @param index index to use
      * @param pageable PageRequest to limit/offset result
      * @return List of entities
      */
-    List<V> select(int spaceId, int indexId, Pageable pageable);
+    List<V> select(String space, String index, Pageable pageable);
 
-    /**
-     * Select single entity from space {@code spaceId} by index {@code indexId} and key {@code key}
-     * @param spaceId id of space to select entity from
-     * @param indexId id of index to use
-     * @param key key to use
-     * @return
-     */
-    default V select(int spaceId, int indexId, K key) {
-        final List<V> result = select(spaceId, indexId, key, new PageRequest(0, 1), Iterator.EQ);
+    default V select(String space, K key) {
+        final List<V> result = select(space, key, new PageRequest(0, 1), Iterator.EQ);
         if(result.isEmpty()) {
             return null;
         } else if (result.size() == 1) {
@@ -53,76 +62,110 @@ public interface TarantoolOperations<K, V> {
     }
 
     /**
+     * Select single entity from space {@code spaceId} by index {@code indexId} and key {@code key}
+     * @param space name of space to select entity from
+     * @param index index to use
+     * @param key key to use
+     * @return
+     */
+    default V select(String space, String index, K key) {
+        final List<V> result = select(space, index, key, new PageRequest(0, 1), Iterator.EQ);
+        if(result.isEmpty()) {
+            return null;
+        } else if (result.size() == 1) {
+            return result.get(0);
+        } else {
+            throw new IllegalStateException("Too many entities in result");
+        }
+    }
+
+    /**
+     * Select entities from space {@code space} by primary index by key {@code key} using iterator {@code iterator}
+     * paginated by {@code pageable}
+     * @param space name of space to select entities from
+     * @param key key to user
+     * @param pageable PageRequest to limit/offset result
+     * @param iterator {@link Iterator} to use
+     * @return List of entities
+     */
+    List<V> select(String space, K key, Pageable pageable, Iterator iterator);
+
+    /**
      * Select entities from space {@code spaceId} by index {@code indexId} by key {@code key} using iterator {@code iterator}
      * paginated by {@code pageable}
-     * @param spaceId id of space to select entities from
-     * @param indexId id of index to use
+     * @param space name of space to select entities from
+     * @param index id of index to use
      * @param key key to use
      * @param pageable PageRequest to limit/offset result
      * @param iterator {@link Iterator} to use
      * @return List of intities
      */
-    List<V> select(int spaceId, int indexId, K key, Pageable pageable, Iterator iterator);
-
-    List<K> selectKeys(int spaceId, int indexId);
+    List<V> select(String space, String index, K key, Pageable pageable, Iterator iterator);
 
     /**
      * Insert entity into space
-     * @param spaceId id of space to insert to
-     * @param value value to insert
+     * @param space name of space to replace to
+     * @param value value to replace
      * @return inserted value
      */
-    V insert(int spaceId, K key, V value);
+    V insert(String space, K key, V value);
 
     /**
      * Insert entity into space if key doesn't exists or replace by
-     * @param spaceId
+     * @param space
+     * @param key
      * @param value
      * @return
      */
-    V replace(int spaceId, K key, V value);
+    V replace(String space, K key, V value);
 
     /**
      * Apply single operation to entity selected by key
-     * @param spaceId id of space to select entities from
-     * @param indexId id of index to use
+     * @param space name of space to select entities from
+     * @param index name of index to use
      * @param key key to use
      * @param operation {@link Operation} to apply
      * @return result of operation
      */
-    default V update(int spaceId, int indexId, K key, Operation operation) {
-        return update(spaceId, indexId, key, Collections.singletonList(operation));
+    default V update(String space, String index, K key, Operation operation) {
+        return update(space, index, key, Collections.singletonList(operation));
     }
 
     /**
      * Apply multiple operations to entity selected by key
-     * @param spaceId id of space to select entities from
-     * @param indexId id of index to use
+     * @param space space to select entities
+     * @param key key to use
+     * @param operations {@link Operation} to apply
+     * @return result of operation
+     */
+    V update(String space, K key, List<Operation> operations);
+
+    /**
+     * Apply multiple operations to entity selected by key
+     * @param space name of space to select entities from
+     * @param index name of index to use
      * @param key key to use
      * @param operation {@link Operation} to apply
      * @return result of operation
      */
-    V update(int spaceId, int indexId, K key, List<Operation> operation);
+    V update(String space, String index, K key, List<Operation> operation);
 
     /**
-     * If entity associated with key exists, apply operations otherwise insert value
-     * @param spaceId id of space to select entities from
+     * If entity associated with key exists, apply operations otherwise replace value
+     * @param space name of space to select entities from
      * @param key key to use
-     * @param value value to insert
+     * @param value value to replace
      * @param operations list of {@link Operation} to apply
      */
-    void upsert(int spaceId, K key, V value, List<Operation> operations);
+    void upsert(String space, K key, V value, List<Operation> operations);
 
     /**
      * Delete entity by id
-     * @param spaceId id of space to delete entities from
+     * @param space name of space to delete entities from
      * @param key key to use
      * @return deleted entity
      */
-    V delete(int spaceId, K key);
+    V delete(String space, K key);
 
-    default void deleteAll(int spaceId) {
-        final List<K> all = selectKeys(spaceId, 0);
-        all.forEach(it -> delete(spaceId, it));
-    }
+    void deleteAll(String space);
 }

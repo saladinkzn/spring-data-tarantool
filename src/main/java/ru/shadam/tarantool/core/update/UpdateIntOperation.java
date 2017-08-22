@@ -14,10 +14,6 @@ public class UpdateIntOperation extends Operation<UpdateIntOperator> {
         this.argument = argument;
     }
 
-    public int getArgument() {
-        return argument;
-    }
-
     @Override
     public List<?> toTuple() {
         return Arrays.asList(operator.getValue(), fieldNumber, argument);

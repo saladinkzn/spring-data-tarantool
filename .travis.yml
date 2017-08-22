@@ -5,14 +5,9 @@ jdk:
   - oraclejdk8
 
 before_install:
+  - docker --version
+  - docker-compose --version
   - chmod +x gradlew
-  - sudo apt-get update
-  - sudo apt-cache madison docker-engine
-  - sudo apt-get install docker-engine=${DOCKER_VERSION}
-  - sudo rm /usr/local/bin/docker-compose
-  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
-  - chmod +x docker-compose
-  - sudo mv docker-compose /usr/local/bin
 
 before_cache:
   - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
@@ -34,6 +29,9 @@ env:
   gY/1WofmjsMTpIdG+DtBZgLOl4J9ToO4Cn1V+sLwSTlCsrBrjAA+e77BJZuMgPue64s8hgm16M03wss298oiZJAZuwvkQgmy02HmDPW6Hyis4wHDTKT02luqEWzBKml+ijw+/0l7duygD0ezuodeLhA4="
   - DOCKER_COMPOSE_VERSION: 1.10.0
   - DOCKER_VERSION: 1.13.0-0~ubuntu-trusty
+
+after_success:
+  - ./gradlew mergedReport coveralls
 
 
 deploy:

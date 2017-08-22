@@ -51,8 +51,6 @@ public class Path {
         return indexes.isEmpty();
     }
 
-
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
