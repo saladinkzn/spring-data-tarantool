@@ -1,3 +1,5 @@
+import java.util.regex.Matcher
+
 plugins {
   id 'java'
   id 'com.ewerk.gradle.plugins.integration-test' version "1.0.6"
@@ -6,6 +8,7 @@ plugins {
   id 'ru.shadam.publish-plugin' version '0.3.0' apply false
   id "com.jfrog.bintray" version "1.7.3" apply false
   id "com.jfrog.artifactory" version "4.4.12" apply(false)
+  id 'net.researchgate.release' version '2.6.0'
 }
 
 apply plugin: 'ru.shadam.publish-plugin'
@@ -83,6 +86,15 @@ integrationTest {
   testLogging {
     events "passed", "failed"
     exceptionFormat "full"
+  }
+}
+
+release {
+  versionPatterns = [
+    /(\d+)(\.\d+[^\d]*$)/: { Matcher m, Project p -> m.replaceAll("${(m[0][1] as int) + 1}${m[0][2]}") }
+  ]
+  git {
+    pushToRemote = false
   }
 }
 
