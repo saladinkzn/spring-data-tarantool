@@ -15,7 +15,7 @@ repositories {
 }
 
 dependencies {
-  compile 'ru.shadam:spring-data-tarantool:0.2.0'
+  compile 'ru.shadam:spring-data-tarantool:0.3.0'
 }
 ```
 
